@@ -1,0 +1,11 @@
+name: hermes-mcp
+version: 0.1.0
+description: "MCP Server tools for knowledge retrieval, text processing, and encoding"
+author: "Hermes MCP Team"
+kind: standalone
+provides_tools:
+  - search_knowledge
+  - json_parse
+  - base64
+  - now
+provides_hooks: []

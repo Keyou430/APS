@@ -1,0 +1,14 @@
+# Knowledge gateway with one explicitly admitted read-only external toolset.
+_config_version: 33
+
+model:
+  provider: deepseek
+  default: deepseek-v4-flash
+
+plugins:
+  enabled:
+    - dingtalk-documents
+
+platform_toolsets:
+  api_server:
+    - dingtalk_documents

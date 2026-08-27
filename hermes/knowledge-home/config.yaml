@@ -1,0 +1,7 @@
+model:
+  default: deepseek-v4-flash
+  provider: deepseek
+platform_toolsets:
+  api_server:
+    - no_mcp
+_config_version: 32

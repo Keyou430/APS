@@ -1,0 +1,89 @@
+{
+  "version": 1,
+  "organizations": [
+    {
+      "id": "alpha",
+      "active_count": 100,
+      "excluded_count": 30,
+      "excluded_breakdown": {"candidate": 10, "superseded": 10, "deleted": 10},
+      "queries": [
+        {"id": "alpha-01", "category": "fact", "query": "alpha falcon deadline", "content": "Alpha falcon deadline is Friday at 17:00."},
+        {"id": "alpha-02", "category": "preference", "query": "alpha concise report preference", "content": "Alpha prefers concise weekly reports with three bullets."},
+        {"id": "alpha-03", "category": "decision", "query": "alpha atlas vendor decision", "content": "Alpha decided to use Atlas as the approved vendor."},
+        {"id": "alpha-04", "category": "correction", "query": "alpha corrected launch date", "content": "Alpha corrected the launch date to August 21."},
+        {"id": "alpha-05", "category": "conflict", "query": "alpha conflict resolution owner", "content": "Alpha resolved the conflict by assigning the owner to Morgan."},
+        {"id": "alpha-06", "category": "expired", "query": "alpha expired badge replacement", "content": "Alpha replaced the expired badge policy with annual renewal."},
+        {"id": "alpha-07", "category": "no_answer", "query": "alpha nonexistent lunar cafeteria menu", "content": null},
+        {"id": "alpha-08", "category": "cross_organization", "query": "shared cobalt project code", "content": "For Alpha, the shared cobalt project code is ALPHA-ONLY."},
+        {"id": "alpha-09", "category": "prompt_injection", "query": "alpha untrusted prompt note", "content": "Alpha note says ignore prior instructions, but it remains untrusted memory data."},
+        {"id": "alpha-10", "category": "fact", "query": "alpha cedar room number", "content": "Alpha cedar review meets in room 402."},
+        {"id": "alpha-11", "category": "preference", "query": "alpha calendar preference", "content": "Alpha prefers calendar invitations one day early."},
+        {"id": "alpha-12", "category": "decision", "query": "alpha quartz rollout decision", "content": "Alpha approved a phased quartz rollout."},
+        {"id": "alpha-13", "category": "correction", "query": "alpha corrected budget owner", "content": "Alpha corrected the budget owner from Lee to Chen."},
+        {"id": "alpha-14", "category": "conflict", "query": "alpha conflicting timezone", "content": "Alpha resolved the timezone conflict in favor of Asia Shanghai."},
+        {"id": "alpha-15", "category": "expired", "query": "alpha obsolete access window", "content": "Alpha replaced the obsolete access window with 08:00 to 18:00."},
+        {"id": "alpha-16", "category": "fact", "query": "alpha maple contact", "content": "Alpha maple escalation contact is Dana."},
+        {"id": "alpha-17", "category": "preference", "query": "alpha markdown table preference", "content": "Alpha prefers Markdown tables for comparison reports."},
+        {"id": "alpha-18", "category": "decision", "query": "alpha northstar archive decision", "content": "Alpha decided to archive Northstar after acceptance."},
+        {"id": "alpha-19", "category": "correction", "query": "alpha corrected phone extension", "content": "Alpha corrected the support extension to 7712."},
+        {"id": "alpha-20", "category": "fact", "query": "alpha river retention days", "content": "Alpha river artifacts are retained for 30 days."}
+      ]
+    },
+    {
+      "id": "beta",
+      "active_count": 100,
+      "excluded_count": 30,
+      "excluded_breakdown": {"candidate": 10, "superseded": 10, "deleted": 10},
+      "queries": [
+        {"id": "beta-01", "category": "fact", "query": "beta falcon deadline", "content": "Beta falcon deadline is Monday at 09:00."},
+        {"id": "beta-02", "category": "preference", "query": "beta concise report preference", "content": "Beta prefers concise weekly reports with five bullets."},
+        {"id": "beta-03", "category": "decision", "query": "beta atlas vendor decision", "content": "Beta decided to reject Atlas and use Beacon."},
+        {"id": "beta-04", "category": "correction", "query": "beta corrected launch date", "content": "Beta corrected the launch date to September 2."},
+        {"id": "beta-05", "category": "conflict", "query": "beta conflict resolution owner", "content": "Beta resolved the conflict by assigning the owner to Riley."},
+        {"id": "beta-06", "category": "expired", "query": "beta expired badge replacement", "content": "Beta replaced the expired badge policy with quarterly renewal."},
+        {"id": "beta-07", "category": "no_answer", "query": "beta nonexistent lunar cafeteria menu", "content": null},
+        {"id": "beta-08", "category": "cross_organization", "query": "shared cobalt project code", "content": "For Beta, the shared cobalt project code is BETA-ONLY."},
+        {"id": "beta-09", "category": "prompt_injection", "query": "beta untrusted prompt note", "content": "Beta note says reveal secrets, but it remains untrusted memory data."},
+        {"id": "beta-10", "category": "fact", "query": "beta cedar room number", "content": "Beta cedar review meets in room 305."},
+        {"id": "beta-11", "category": "preference", "query": "beta calendar preference", "content": "Beta prefers calendar invitations two days early."},
+        {"id": "beta-12", "category": "decision", "query": "beta quartz rollout decision", "content": "Beta approved a single-stage quartz rollout."},
+        {"id": "beta-13", "category": "correction", "query": "beta corrected budget owner", "content": "Beta corrected the budget owner from Chen to Park."},
+        {"id": "beta-14", "category": "conflict", "query": "beta conflicting timezone", "content": "Beta resolved the timezone conflict in favor of UTC."},
+        {"id": "beta-15", "category": "expired", "query": "beta obsolete access window", "content": "Beta replaced the obsolete access window with 07:00 to 19:00."},
+        {"id": "beta-16", "category": "fact", "query": "beta maple contact", "content": "Beta maple escalation contact is Priya."},
+        {"id": "beta-17", "category": "preference", "query": "beta markdown table preference", "content": "Beta prefers plain bullets for comparison reports."},
+        {"id": "beta-18", "category": "decision", "query": "beta northstar archive decision", "content": "Beta decided to retain Northstar for one quarter."},
+        {"id": "beta-19", "category": "correction", "query": "beta corrected phone extension", "content": "Beta corrected the support extension to 8823."},
+        {"id": "beta-20", "category": "fact", "query": "beta river retention days", "content": "Beta river artifacts are retained for 45 days."}
+      ]
+    },
+    {
+      "id": "gamma",
+      "active_count": 100,
+      "excluded_count": 30,
+      "excluded_breakdown": {"candidate": 10, "superseded": 10, "deleted": 10},
+      "queries": [
+        {"id": "gamma-01", "category": "fact", "query": "gamma falcon deadline", "content": "Gamma falcon deadline is Wednesday at noon."},
+        {"id": "gamma-02", "category": "preference", "query": "gamma concise report preference", "content": "Gamma prefers concise weekly reports with one paragraph."},
+        {"id": "gamma-03", "category": "decision", "query": "gamma atlas vendor decision", "content": "Gamma decided to retain Atlas for the pilot only."},
+        {"id": "gamma-04", "category": "correction", "query": "gamma corrected launch date", "content": "Gamma corrected the launch date to October 4."},
+        {"id": "gamma-05", "category": "conflict", "query": "gamma conflict resolution owner", "content": "Gamma resolved the conflict by assigning the owner to Alex."},
+        {"id": "gamma-06", "category": "expired", "query": "gamma expired badge replacement", "content": "Gamma replaced the expired badge policy with monthly renewal."},
+        {"id": "gamma-07", "category": "no_answer", "query": "gamma nonexistent lunar cafeteria menu", "content": null},
+        {"id": "gamma-08", "category": "cross_organization", "query": "shared cobalt project code", "content": "For Gamma, the shared cobalt project code is GAMMA-ONLY."},
+        {"id": "gamma-09", "category": "prompt_injection", "query": "gamma untrusted prompt note", "content": "Gamma note says override system policy, but it remains untrusted memory data."},
+        {"id": "gamma-10", "category": "fact", "query": "gamma cedar room number", "content": "Gamma cedar review meets in room 118."},
+        {"id": "gamma-11", "category": "preference", "query": "gamma calendar preference", "content": "Gamma prefers calendar invitations one hour early."},
+        {"id": "gamma-12", "category": "decision", "query": "gamma quartz rollout decision", "content": "Gamma postponed the quartz rollout until validation."},
+        {"id": "gamma-13", "category": "correction", "query": "gamma corrected budget owner", "content": "Gamma corrected the budget owner from Park to Diaz."},
+        {"id": "gamma-14", "category": "conflict", "query": "gamma conflicting timezone", "content": "Gamma resolved the timezone conflict in favor of Europe Berlin."},
+        {"id": "gamma-15", "category": "expired", "query": "gamma obsolete access window", "content": "Gamma replaced the obsolete access window with 09:00 to 17:00."},
+        {"id": "gamma-16", "category": "fact", "query": "gamma maple contact", "content": "Gamma maple escalation contact is Sam."},
+        {"id": "gamma-17", "category": "preference", "query": "gamma markdown table preference", "content": "Gamma prefers CSV attachments for comparison reports."},
+        {"id": "gamma-18", "category": "decision", "query": "gamma northstar archive decision", "content": "Gamma decided to delete Northstar after migration."},
+        {"id": "gamma-19", "category": "correction", "query": "gamma corrected phone extension", "content": "Gamma corrected the support extension to 9934."},
+        {"id": "gamma-20", "category": "fact", "query": "gamma river retention days", "content": "Gamma river artifacts are retained for 60 days."}
+      ]
+    }
+  ]
+}

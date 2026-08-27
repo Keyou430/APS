@@ -1,0 +1,5 @@
+name: three-source-retrieval
+version: 1.0.0
+description: "Auto-inject retrieval results from 3 FastGPT knowledge bases before each LLM call"
+author: "user"
+kind: standalone

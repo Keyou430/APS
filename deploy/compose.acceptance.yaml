@@ -1,0 +1,46 @@
+# Isolated acceptance stack overlay.
+#
+# Purpose: run a release candidate next to the live deployment WITHOUT
+# sharing its project name, ports, or data volumes. Combine with the base
+# file and (on the formal host) the formal hermes override:
+#
+#   docker compose --env-file .env.acceptance \
+#     -f compose.yaml -f compose.formal-hermes.yaml -f compose.acceptance.yaml \
+#     up -d --build
+#
+# Mandatory .env.acceptance differences from production .env:
+#   - its own POSTGRES_PASSWORD / JWT_SECRET_KEY / ADMIN_PASSWORD
+#   - RESTORE from a production backup first if realistic data is needed
+#     (scripts/restore-db.sh with COMPOSE_PROJECT_NAME=hermes-acceptance)
+#
+# The explicit `name:` below keeps acceptance containers, networks and
+# volumes physically separate from the production compose project.
+
+name: ${ACCEPTANCE_COMPOSE_PROJECT_NAME:-hermes-platform-acceptance}
+
+services:
+  db:
+    volumes:
+      - acceptance_postgres_data:/var/lib/postgresql/data
+    # Dedicated port so operators can inspect the acceptance database
+    # without exec-ing into the production container.
+    ports:
+      - "${ACCEPTANCE_DB_BIND:-127.0.0.1}:${ACCEPTANCE_DB_PORT:-15432}:5432"
+
+  api:
+    volumes:
+      - acceptance_backend_uploads:/data/uploads
+      - acceptance_hermes_profiles:/data/hermes-profiles
+
+  rag-worker:
+    volumes:
+      - acceptance_backend_uploads:/data/uploads
+
+  web:
+    ports:
+      - "${ACCEPTANCE_APP_BIND:-127.0.0.1}:${ACCEPTANCE_APP_PORT:-18080}:80"
+
+volumes:
+  acceptance_postgres_data:
+  acceptance_backend_uploads:
+  acceptance_hermes_profiles:

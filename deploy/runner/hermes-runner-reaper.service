@@ -1,0 +1,27 @@
+[Unit]
+Description=Reap stale labeled Hermes sandbox containers
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=hermes-runner
+Group=hermes-runner
+Environment=HERMES_RUNNER_MAX_AGE_SECONDS=3600
+ExecStart=/home/hermes-runner/runner-control/reap-hermes-runner.sh
+UMask=0077
+NoNewPrivileges=true
+CapabilityBoundingSet=
+AmbientCapabilities=
+PrivateDevices=true
+PrivateTmp=true
+ProtectControlGroups=true
+ProtectHome=read-only
+ProtectKernelModules=true
+ProtectKernelTunables=true
+ProtectSystem=strict
+RestrictAddressFamilies=AF_UNIX
+RestrictNamespaces=true
+RestrictRealtime=true
+LockPersonality=true
+MemoryMax=64M
+TasksMax=32

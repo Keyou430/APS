@@ -1,0 +1,58 @@
+name: hermes-sandbox-verification
+
+services:
+  sandbox-probe-a:
+    image: ${HERMES_SANDBOX_IMAGE:-python:3.12-slim@sha256:57cd7c3a7a273101a6485ba99423ee568157882804b1124b4dd04266317710de}
+    profiles: ["sandbox-validation"]
+    command: ["sh", "-c", "trap 'exit 0' TERM INT; while :; do sleep 3600 & wait $!; done"]
+    user: "65532:65532"
+    read_only: true
+    network_mode: none
+    privileged: false
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 64
+    mem_limit: 256m
+    cpus: "0.50"
+    init: true
+    working_dir: /workspace
+    environment:
+      HOME: /workspace
+      TMPDIR: /tmp
+    tmpfs:
+      - /workspace:rw,nosuid,nodev,noexec,size=64m,uid=65532,gid=65532,mode=0700
+      - /tmp:rw,nosuid,nodev,noexec,size=16m,uid=65532,gid=65532,mode=0700
+    ulimits:
+      nproc: 64
+      nofile: 256
+    restart: "no"
+
+  sandbox-probe-b:
+    image: ${HERMES_SANDBOX_IMAGE:-python:3.12-slim@sha256:57cd7c3a7a273101a6485ba99423ee568157882804b1124b4dd04266317710de}
+    profiles: ["sandbox-validation"]
+    command: ["sh", "-c", "trap 'exit 0' TERM INT; while :; do sleep 3600 & wait $!; done"]
+    user: "65532:65532"
+    read_only: true
+    network_mode: none
+    privileged: false
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 64
+    mem_limit: 256m
+    cpus: "0.50"
+    init: true
+    working_dir: /workspace
+    environment:
+      HOME: /workspace
+      TMPDIR: /tmp
+    tmpfs:
+      - /workspace:rw,nosuid,nodev,noexec,size=64m,uid=65532,gid=65532,mode=0700
+      - /tmp:rw,nosuid,nodev,noexec,size=16m,uid=65532,gid=65532,mode=0700
+    ulimits:
+      nproc: 64
+      nofile: 256
+    restart: "no"

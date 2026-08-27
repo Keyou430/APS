@@ -1,0 +1,60 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+.pytest-tmp/
+**/.pytest-tmp/
+.mypy_cache/
+.ruff_cache/
+.venv/
+**/.venv/
+.coverage
+coverage.xml
+htmlcov/
+
+# Local environment and secrets
+.env
+**/.env
+!.env.example
+!**/.env.example
+
+# Node
+node_modules/
+**/node_modules/
+dist/
+**/dist/
+
+# Local databases and runtime files
+*.db
+*.sqlite
+*.sqlite3
+*.db-wal
+*.db-shm
+*.log
+*.pid
+hermes/.update_check
+hermes/auth.json
+hermes/auth.lock
+hermes/bin/
+hermes/cache/
+hermes/channel_directory.json
+hermes/cron/
+hermes/gateway.lock
+hermes/gateway_state.json
+hermes/hermes*.exe
+hermes/kanban.db*
+hermes/kanban/
+hermes/logs/
+hermes/models_dev_cache.json
+hermes/skills/.curator_state
+hermes/response_store.db*
+hermes/state.db*
+backend/uploads/private/
+web-platform/test-results/
+
+# Tool and OS files
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

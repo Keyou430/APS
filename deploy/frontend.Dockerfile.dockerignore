@@ -1,0 +1,13 @@
+.git
+.sisyphus
+node_modules
+dist
+dist-ssr
+test-results
+playwright-report
+coverage
+*.log
+.env
+.env.*
+!.env.example
+

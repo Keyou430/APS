@@ -1,0 +1,168 @@
+name: ${COMPOSE_PROJECT_NAME:-hermes-platform}
+
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-agent_platform}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in deploy/.env}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - pg_isready -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}"
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+    networks:
+      - platform
+
+  api:
+    build:
+      context: ../backend
+      dockerfile: ../deploy/backend.Dockerfile
+    restart: unless-stopped
+    environment:
+      APP_ENV: ${APP_ENV:-container}
+      DEBUG: "false"
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-agent_platform}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:?Set JWT_SECRET_KEY in deploy/.env}
+      JWT_ALGORITHM: HS256
+      ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-30}
+      REFRESH_TOKEN_EXPIRE_DAYS: ${REFRESH_TOKEN_EXPIRE_DAYS:-7}
+      WORK_ITEM_ARCHIVE_ENABLED: ${WORK_ITEM_ARCHIVE_ENABLED:-true}
+      WORK_ITEM_ARCHIVE_POLL_SECONDS: ${WORK_ITEM_ARCHIVE_POLL_SECONDS:-60}
+      WORK_ITEM_ARCHIVE_BATCH_SIZE: ${WORK_ITEM_ARCHIVE_BATCH_SIZE:-100}
+      HERMES_PROFILES_ROOT: /data/hermes-profiles
+      HERMES_API_URL: ${HERMES_API_URL:-http://host.docker.internal:8081}
+      MEM0_API_URL: ${MEM0_API_URL:-http://host.docker.internal:8888}
+      UPLOAD_DIR: /data/uploads
+      CORS_ORIGINS: '["http://localhost:${APP_PORT:-8080}"]'
+      ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:?Set ADMIN_PASSWORD in deploy/.env}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@example.com}
+      RAG_EMBEDDING_ENABLED: ${RAG_EMBEDDING_ENABLED:-false}
+      RAG_QUERY_EMBEDDING_URL: http://rag-worker:8091
+      RAG_QUERY_EMBEDDING_TOKEN: ${RAG_QUERY_EMBEDDING_TOKEN:-}
+      RAG_QUERY_EMBEDDING_TIMEOUT_SECONDS: ${RAG_QUERY_EMBEDDING_TIMEOUT_SECONDS:-10}
+      RAG_QUERY_AUDIT_HMAC_KEY: ${RAG_QUERY_AUDIT_HMAC_KEY:?Set RAG_QUERY_AUDIT_HMAC_KEY in deploy/.env}
+      RAG_QUERY_AUDIT_HMAC_VERSION: ${RAG_QUERY_AUDIT_HMAC_VERSION:-1}
+      FEATURE_EXTERNAL_GUESTS: ${FEATURE_EXTERNAL_GUESTS:-false}
+      GUEST_INVITATION_DELIVERY_ADAPTER: ${GUEST_INVITATION_DELIVERY_ADAPTER:-test}
+      GUEST_INVITATION_PUBLIC_BASE_URL: ${GUEST_INVITATION_PUBLIC_BASE_URL:-}
+      GUEST_INVITATION_RECIPIENT_ALLOWLIST: ${GUEST_INVITATION_RECIPIENT_ALLOWLIST:-}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-465}
+      SMTP_USERNAME: ${SMTP_USERNAME:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM_EMAIL: ${SMTP_FROM_EMAIL:-}
+      SMTP_TIMEOUT_SECONDS: ${SMTP_TIMEOUT_SECONDS:-10}
+    command:
+      - /bin/sh
+      - -ec
+      - alembic upgrade head && python seed.py && exec uvicorn main:app --host 0.0.0.0 --port 8000
+    volumes:
+      - backend_uploads:/data/uploads
+      - hermes_profiles:/data/hermes-profiles
+    depends_on:
+      db:
+        condition: service_healthy
+      rag-worker:
+        condition: service_healthy
+        required: false
+    expose:
+      - "8000"
+    extra_hosts:
+      - host.docker.internal:host-gateway
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/ready')
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+    networks:
+      - platform
+
+  rag-worker:
+    profiles: ["rag"]
+    build:
+      context: ../backend
+      dockerfile: ../deploy/rag-worker.Dockerfile
+    restart: unless-stopped
+    environment:
+      APP_ENV: ${APP_ENV:-container}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:?Set JWT_SECRET_KEY in deploy/.env}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:?Set ADMIN_PASSWORD in deploy/.env}
+      RAG_QUERY_AUDIT_HMAC_KEY: ${RAG_QUERY_AUDIT_HMAC_KEY:?Set RAG_QUERY_AUDIT_HMAC_KEY in deploy/.env}
+      RAG_EMBEDDING_ENABLED: ${RAG_EMBEDDING_ENABLED:-false}
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-agent_platform}
+      RAG_EMBEDDING_API_URL: ${RAG_EMBEDDING_API_URL:-}
+      RAG_EMBEDDING_API_KEY: ${RAG_EMBEDDING_API_KEY:-}
+      RAG_EMBEDDING_MODEL: text-embedding-v4
+      RAG_EMBEDDING_DIMENSIONS: "1024"
+      RAG_EMBEDDING_TIMEOUT_SECONDS: ${RAG_EMBEDDING_TIMEOUT_SECONDS:-30}
+      RAG_WORKER_POLL_SECONDS: ${RAG_WORKER_POLL_SECONDS:-1}
+      RAG_QUERY_EMBEDDING_TOKEN: ${RAG_QUERY_EMBEDDING_TOKEN:-}
+      RAG_QUERY_EMBEDDING_HOST: 0.0.0.0
+      RAG_QUERY_EMBEDDING_PORT: "8091"
+      UPLOAD_DIR: /data/uploads
+    volumes:
+      - backend_uploads:/data/uploads
+    depends_on:
+      db:
+        condition: service_healthy
+    expose:
+      - "8091"
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - import urllib.request; urllib.request.urlopen('http://127.0.0.1:8091/health')
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+    networks:
+      - platform
+
+  web:
+    build:
+      context: ../web-platform
+      dockerfile: ../deploy/frontend.Dockerfile
+      args:
+        VITE_API_BASE_URL: /api
+        VITE_FEATURE_EXTERNAL_GUESTS: ${FEATURE_EXTERNAL_GUESTS:-false}
+    restart: unless-stopped
+    ports:
+      - ${APP_BIND:-127.0.0.1}:${APP_PORT:-8080}:80
+    volumes:
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: [CMD, wget, -q, -O, /dev/null, http://127.0.0.1/ready]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+    networks:
+      - platform
+
+networks:
+  platform:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  backend_uploads:
+  hermes_profiles:

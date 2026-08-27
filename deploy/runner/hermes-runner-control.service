@@ -1,0 +1,33 @@
+[Unit]
+Description=Hermes rootless sandbox cleanup control
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=hermes-runner
+Group=hermes-runner
+Environment=PYTHONDONTWRITEBYTECODE=1
+ExecStart=/bin/sh -ec 'export DOCKER_HOST="unix:///run/user/$(id -u)/docker.sock"; exec /usr/bin/python3 /home/hermes-runner/runner-control/hermes_runner_control.py --bind 192.168.3.107 --port 9443 --certificate /home/hermes-runner/runner-control/tls/server.crt --private-key /home/hermes-runner/runner-control/tls/server.key --client-ca /home/hermes-runner/runner-control/tls/ca.crt'
+Restart=on-failure
+RestartSec=2s
+UMask=0077
+NoNewPrivileges=true
+CapabilityBoundingSet=
+AmbientCapabilities=
+PrivateDevices=true
+PrivateTmp=true
+ProtectControlGroups=true
+ProtectHome=read-only
+ProtectKernelModules=true
+ProtectKernelTunables=true
+ProtectSystem=strict
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+RestrictNamespaces=true
+RestrictRealtime=true
+LockPersonality=true
+MemoryMax=128M
+TasksMax=64
+
+[Install]
+WantedBy=multi-user.target

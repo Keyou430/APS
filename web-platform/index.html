@@ -1,0 +1,782 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23123f86'/%3E%3Cpath d='M17 20h30v7H17zm0 12h30v7H17zm0 12h20v7H17z' fill='white'/%3E%3C/svg%3E" />
+  <title>星纪云1.0 · 企业工作台</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <svg aria-hidden="true" width="0" height="0" style="position:absolute">
+    <symbol id="i-grid" viewBox="0 0 24 24"><rect x="4" y="4" width="6" height="6" rx="1"/><rect x="14" y="4" width="6" height="6" rx="1"/><rect x="4" y="14" width="6" height="6" rx="1"/><rect x="14" y="14" width="6" height="6" rx="1"/></symbol>
+    <symbol id="i-calendar" viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M8 3v4M16 3v4M4 9h16"/></symbol>
+    <symbol id="i-book" viewBox="0 0 24 24"><path d="M5 4.5A2.5 2.5 0 0 1 7.5 2H20v17H7.5A2.5 2.5 0 0 0 5 21.5z"/><path d="M5 4.5v17M8 6h8M8 10h8"/></symbol>
+    <symbol id="i-chart" viewBox="0 0 24 24"><path d="M4 19V5M4 19h16"/><rect x="7" y="12" width="2.8" height="4" rx="1"/><rect x="11" y="9" width="2.8" height="7" rx="1"/><rect x="15" y="6" width="2.8" height="10" rx="1"/></symbol>
+    <symbol id="i-home" viewBox="0 0 24 24"><path d="m4 10 8-6 8 6v9a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1z"/><path d="M9 20v-6h6v6"/></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24"><circle cx="10.8" cy="10.8" r="6.8"/><path d="m16 16 5 5"/></symbol>
+    <symbol id="i-bell" viewBox="0 0 24 24"><path d="M18 9a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/></symbol>
+    <symbol id="i-chevron-down" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+    <symbol id="i-chevron-left" viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></symbol>
+    <symbol id="i-chevron-right" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+    <symbol id="i-settings" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.8 1.8 0 0 0 .36 1.98l.06.06-1.9 1.9-.06-.06a1.8 1.8 0 0 0-1.98-.36 1.8 1.8 0 0 0-1.1 1.66V21h-2.7v-.08a1.8 1.8 0 0 0-1.1-1.66 1.8 1.8 0 0 0-1.98.36l-.06.06-1.9-1.9.06-.06A1.8 1.8 0 0 0 7.4 15a1.8 1.8 0 0 0-1.66-1.1H5.6v-2.7h.14A1.8 1.8 0 0 0 7.4 10a1.8 1.8 0 0 0-.36-1.98l-.06-.06 1.9-1.9.06.06a1.8 1.8 0 0 0 1.98.36 1.8 1.8 0 0 0 1.1-1.66V4h2.7v.82a1.8 1.8 0 0 0 1.1 1.66 1.8 1.8 0 0 0 1.98-.36l.06-.06 1.9 1.9-.06.06A1.8 1.8 0 0 0 19.4 10a1.8 1.8 0 0 0 1.66 1.1h.14v2.7h-.14A1.8 1.8 0 0 0 19.4 15z"/></symbol>
+    <symbol id="i-video" viewBox="0 0 24 24"><rect x="3" y="6" width="13" height="12" rx="2"/><path d="m16 10 5-3v10l-5-3z"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></symbol>
+    <symbol id="i-file" viewBox="0 0 24 24"><path d="M6 3h8l4 4v14H6z"/><path d="M14 3v5h5M9 13h6M9 17h6"/></symbol>
+    <symbol id="i-folder" viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></symbol>
+    <symbol id="i-upload" viewBox="0 0 24 24"><path d="M12 16V4M8 8l4-4 4 4M5 16v3h14v-3"/></symbol>
+    <symbol id="i-message" viewBox="0 0 24 24"><path d="M4 5h16v11H8l-4 4z"/><path d="M8 9h8M8 12h5"/></symbol>
+    <symbol id="i-more" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></symbol>
+    <symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="3"/><path d="M5 20a7 7 0 0 1 14 0"/></symbol>
+    <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 7v5l3 2"/></symbol>
+    <symbol id="i-star" viewBox="0 0 24 24"><path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1.1 6.2-5.6-3-5.6 3 1.1-6.2L3 9.6l6.2-.9z"/></symbol>
+    <symbol id="i-spark" viewBox="0 0 24 24"><path d="m12 3 1.4 5.6L19 10l-5.6 1.4L12 17l-1.4-5.6L5 10l5.6-1.4zM19 16l.7 2.3L22 19l-2.3.7L19 22l-.7-2.3L16 19l2.3-.7z"/></symbol>
+    <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M20 11a8 8 0 0 0-14.2-5L4 8M4 4v4h4M4 13a8 8 0 0 0 14.2 5L20 16M20 20v-4h-4"/></symbol>
+    <symbol id="i-external" viewBox="0 0 24 24"><path d="M14 4h6v6M20 4l-9 9"/><path d="M19 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h5"/></symbol>
+    <symbol id="i-close" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></symbol>
+    <symbol id="i-grip" viewBox="0 0 24 24"><circle cx="9" cy="5" r="1.5"/><circle cx="15" cy="5" r="1.5"/><circle cx="9" cy="12" r="1.5"/><circle cx="15" cy="12" r="1.5"/><circle cx="9" cy="19" r="1.5"/><circle cx="15" cy="19" r="1.5"/></symbol>
+    <symbol id="i-arrow-up" viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></symbol>
+  </svg>
+
+  <div class="app-shell" id="appShell">
+  <header class="topbar">
+    <div class="topbar-row1">
+      <div class="brand">
+        <div class="brand-mark">星</div>
+        <div class="brand-copy"><strong>星纪云1.0</strong><span>Enterprise Workspace</span></div>
+      </div>
+      <div class="top-actions">
+        <time class="platform-clock" id="platformClock" aria-label="平台当前时间"></time>
+        <button class="top-icon" id="globalSearchButton" aria-label="搜索"><svg class="icon"><use href="#i-search"/></svg></button>
+        <button class="top-icon" id="notificationButton" aria-label="通知"><svg class="icon"><use href="#i-bell"/></svg><span class="bell-badge" id="notificationBadge" hidden>0</span></button>
+        <button class="user-trigger" id="userButton" aria-label="个人入口"><span class="avatar">?</span><span>未登录</span><svg class="icon" style="width:14px;height:14px"><use href="#i-chevron-down"/></svg></button>
+      </div>
+    </div>
+  </header>
+
+  <div class="app-frame">
+    <div class="layout">
+      <aside class="module-sidebar" id="moduleSidebar" aria-label="主导航">
+        <div class="sidebar-head">
+          <div class="side-title" id="sidebarTitle">导航</div>
+          <button class="sidebar-toggle" id="sidebarToggle" type="button" aria-label="收起侧边栏" aria-expanded="true" aria-controls="moduleSidebar">
+            <svg class="icon"><use href="#i-chevron-left"/></svg>
+          </button>
+        </div>
+        <nav class="sidebar-nav" id="sidebarContent">
+          <div class="nav-item" data-nav="portal">
+            <div class="nav-row">
+              <button class="nav-main" data-view="portal" title="企业门户"><svg class="icon"><use href="#i-home"/></svg><span>企业门户</span></button>
+              <button class="nav-expand" aria-label="展开子菜单"><svg class="icon nav-chevron"><use href="#i-chevron-down"/></svg></button>
+            </div>
+            <div class="nav-submenu">
+              <button class="side-link" data-scroll-target="portal-overview"><span>门户概览</span></button>
+              <button class="side-link" data-scroll-target="portal-personal"><span>个人数据</span></button>
+              <button class="side-link" data-scroll-target="portal-systems"><span>信息系统</span></button>
+            </div>
+          </div>
+          <div class="nav-item expanded" data-nav="workspace">
+            <div class="nav-row">
+              <button class="nav-main active" data-view="workspace" title="驾驶舱"><svg class="icon"><use href="#i-grid"/></svg><span>驾驶舱</span></button>
+              <button class="nav-expand" aria-label="收起子菜单"><svg class="icon nav-chevron"><use href="#i-chevron-down"/></svg></button>
+            </div>
+            <div class="nav-submenu">
+              <button class="side-link active" data-scroll-target="cockpitKpiGrid"><span>数据看板</span></button>
+              <button class="side-link" data-scroll-target="cockpit-decisions"><span>智能决策</span></button>
+              <button class="side-link" data-scroll-target="cockpit-tasks" data-badge="tasks"><span>待办事务</span></button>
+              <button class="side-link" data-scroll-target="cockpit-docs"><span>重要文档</span></button>
+              <button class="side-link" data-scroll-target="cockpit-shortcuts"><span>常用功能</span></button>
+            </div>
+          </div>
+          <div class="nav-item" data-nav="knowledge">
+            <div class="nav-row">
+              <button class="nav-main" data-view="knowledge" title="AI 服务"><svg class="icon"><use href="#i-book"/></svg><span>AI 服务</span></button>
+              <button class="nav-expand" aria-label="展开子菜单"><svg class="icon nav-chevron"><use href="#i-chevron-down"/></svg></button>
+            </div>
+            <div class="nav-submenu">
+              <button class="side-link active" data-kb-sub-link="all"><span>全部资料</span></button>
+              <button class="side-link" data-kb-sub-link="kb"><span>知识库</span></button>
+              <button class="side-link" data-kb-sub-link="methods"><span>经验方法</span></button>
+              <button class="side-link" data-kb-sub-link="skills"><span>技能库</span></button>
+              <button class="side-link" data-kb-sub-link="trash"><span>回收站</span></button>
+              <button class="side-link" data-kb-sub-link="sessions"><span>会话管理</span></button>
+            </div>
+          </div>
+          <div class="nav-item" data-nav="org-structure">
+            <div class="nav-row">
+              <button class="nav-main" data-view="org-structure" title="组织架构"><svg class="icon"><use href="#i-user"/></svg><span>组织架构</span></button>
+            </div>
+          </div>
+          <div class="nav-item" data-nav="work-platform">
+            <div class="nav-row">
+              <button class="nav-main" data-view="feishu" title="工作平台"><svg class="icon"><use href="#i-message"/></svg><span>工作平台</span></button>
+              <button class="nav-expand" aria-label="展开子菜单"><svg class="icon nav-chevron"><use href="#i-chevron-down"/></svg></button>
+            </div>
+            <div class="nav-submenu">
+              <button class="side-link" data-view-link="feishu"><span>飞书</span></button>
+              <button class="side-link" data-view-link="dingtalk"><span>钉钉</span></button>
+              <div id="customWebsiteMenu"></div>
+              <button class="side-link" id="customWebsiteAdd" type="button"><span>添加自定义网站</span></button>
+            </div>
+          </div>
+          <div class="nav-item" data-nav="admin" id="navAdmin" hidden>
+            <div class="nav-row">
+              <button class="nav-main" data-view="admin" title="账号管理"><svg class="icon"><use href="#i-settings"/></svg><span>账号管理</span></button>
+              <button class="nav-expand" aria-label="展开子菜单"><svg class="icon nav-chevron"><use href="#i-chevron-down"/></svg></button>
+            </div>
+            <div class="nav-submenu">
+              <button class="side-link" data-admin-sub="users"><span>用户管理</span></button>
+              <button class="side-link" data-admin-sub="audit"><span>审计日志</span></button>
+              <button class="side-link" data-admin-sub="aiquery"><span>AI查询记录</span></button>
+              <button class="side-link" data-admin-sub="sessions"><span>会话管理</span></button>
+              <button class="side-link" data-admin-sub="anomalies"><span>异常统计</span></button>
+            </div>
+          </div>
+        </nav>
+        <div class="sidebar-docs" id="sidebarDocs">
+          <div class="sidebar-docs-title">最近文档</div>
+          <div class="sidebar-docs-list" id="sidebarDocsList"></div>
+        </div>
+        <div class="sidebar-foot" id="sidebarFoot">
+          <span class="sidebar-avatar" id="sidebarAvatar">?</span>
+          <span class="sidebar-name" id="sidebarName">未登录</span>
+        </div>
+      </aside>
+      <div class="sidebar-resizer" id="sidebarResizer" role="separator" aria-label="调整模块侧边栏宽度" aria-orientation="vertical" tabindex="0"></div>
+
+      <div class="content-area">
+        <div class="tab-bar" id="tabBar"></div>
+        <main class="main">
+        <section class="view active" id="workspace">
+          <!-- 页面标题 -->
+          <div class="page-heading">
+            <div><h1>驾驶舱</h1><p id="workspaceTodaySummary">周一，2026 年 8 月 10 日 · 驾驶舱今日概览</p></div>
+          </div>
+
+          <!-- Layer 1: 仪表盘总卡片 -->
+          <article class="card" id="cockpitKpiGrid">
+            <div class="card-header">
+              <div class="card-title">数据看板</div>
+              <div class="heading-actions" style="position:relative">
+                <button class="btn" id="cockpitAddComponent"><svg class="icon"><use href="#i-plus"/></svg>添加组件</button>
+                <button class="btn" id="cockpitSaveLayout"><svg class="icon"><use href="#i-check"/></svg>保存布局</button>
+                <button class="btn" id="cockpitResetLayout"><svg class="icon"><use href="#i-refresh"/></svg>恢复默认</button>
+                <div class="cockpit-component-panel" id="cockpitComponentPanel" hidden></div>
+              </div>
+            </div>
+            <div class="cockpit-kpi-grid-inner">
+              <article class="card cockpit-kpi-card" data-kpi="business">
+                <div class="cockpit-kpi-head"><span class="cockpit-kpi-title">经营数据</span><svg class="icon cockpit-kpi-chevron"><use href="#i-chevron-down"/></svg></div>
+                <div class="cockpit-kpi-metrics" data-kpi-metrics></div>
+              </article>
+              <article class="card cockpit-kpi-card" data-kpi="staff">
+                <div class="cockpit-kpi-head"><span class="cockpit-kpi-title">人员统计</span><svg class="icon cockpit-kpi-chevron"><use href="#i-chevron-down"/></svg></div>
+                <div class="cockpit-kpi-metrics" data-kpi-metrics></div>
+              </article>
+              <article class="card cockpit-kpi-card" data-kpi="market">
+                <div class="cockpit-kpi-head"><span class="cockpit-kpi-title">市场情况</span><svg class="icon cockpit-kpi-chevron"><use href="#i-chevron-down"/></svg></div>
+                <div class="cockpit-kpi-metrics" data-kpi-metrics></div>
+              </article>
+              <article class="card cockpit-kpi-card" data-kpi="production">
+                <div class="cockpit-kpi-head"><span class="cockpit-kpi-title">生产情况</span><svg class="icon cockpit-kpi-chevron"><use href="#i-chevron-down"/></svg></div>
+                <div class="cockpit-kpi-metrics" data-kpi-metrics></div>
+              </article>
+              <article class="card cockpit-kpi-card" data-kpi="other">
+                <div class="cockpit-kpi-head"><span class="cockpit-kpi-title">其他关键指标</span><svg class="icon cockpit-kpi-chevron"><use href="#i-chevron-down"/></svg></div>
+                <div class="cockpit-kpi-metrics" data-kpi-metrics></div>
+              </article>
+            </div>
+            <div class="cockpit-kpi-detail" id="cockpitKpiDetail" hidden></div>
+          </article>
+
+          <article class="card cockpit-decision-card" id="cockpit-decisions">
+            <div class="card-header">
+              <div class="card-title">智能决策</div>
+            </div>
+            <div class="tabs cockpit-decision-filters">
+              <button class="tab active" data-decision-filter="all" type="button">全部</button>
+              <button class="tab" data-decision-filter="pending" type="button">待决策</button>
+              <button class="tab" data-decision-filter="approved" type="button">已同意</button>
+              <button class="tab" data-decision-filter="rejected" type="button">已驳回</button>
+              <button class="tab" data-decision-filter="regenerating" type="button">重新生成中</button>
+            </div>
+            <div class="cockpit-decision-list" id="cockpitDecisionList"></div>
+          </article>
+
+          <!-- Layer 2: 业务工作面板 -->
+          <div class="cockpit-panels">
+            <article class="card" id="cockpit-tasks">
+              <div class="card-header"><div class="card-title">待办事务</div><button class="card-link" id="clearDoneTasks" type="button">清理已完成</button></div>
+              <form class="task-composer" id="taskForm">
+                <input id="taskTitle" autocomplete="off" placeholder="添加新任务…" />
+                <div class="task-composer-row">
+                  <div class="task-deadline-group">
+                    <span class="task-deadline-label">截止时间</span>
+                    <div class="task-deadline-fields">
+                      <select id="taskTag" aria-label="任务标签">
+                        <option value="今天">今天</option>
+                        <option value="明天">明天</option>
+                        <option value="本周">本周</option>
+                        <option value="跟进">跟进</option>
+                      </select>
+                      <input type="time" id="taskTime" aria-label="截止时间" />
+                    </div>
+                  </div>
+                  <button class="btn primary" type="submit"><svg class="icon"><use href="#i-plus"/></svg>添加</button>
+                </div>
+              </form>
+              <div class="tabs"><button class="tab active" data-task-range="day">日</button><button class="tab" data-task-range="week">周</button><button class="tab" data-task-range="month">月</button></div>
+              <div class="tabs"><button class="tab active" data-task-filter="todo">未完成</button><button class="tab" data-task-filter="overdue">已过期</button><button class="tab" data-task-filter="done">已完成</button><button class="tab" data-task-filter="all">全部</button></div>
+              <div class="task-list" id="taskList"></div>
+            </article>
+            <article class="card" id="cockpit-calendar">
+              <div class="card-header"><div class="card-title">日历摘要</div><button class="card-link" data-view-link="calendar">进入日历</button></div>
+              <div class="card-body cockpit-calendar-body">
+                <div class="mini-month">
+                  <div class="mini-month-head"><span id="miniMonthTitle">2026 年 8 月</span><span><button id="miniPrev" type="button" aria-label="上个月"><svg class="icon" style="width:14px;height:14px"><use href="#i-chevron-left"/></svg></button><button id="miniNext" type="button" aria-label="下个月"><svg class="icon" style="width:14px;height:14px"><use href="#i-chevron-right"/></svg></button></span></div>
+                  <div class="week-labels"><span>一</span><span>二</span><span>三</span><span>四</span><span>五</span><span>六</span><span>日</span></div>
+                  <div class="month-grid" id="miniMonth"></div>
+                </div>
+                <button class="btn primary full-btn" id="cockpitAddEvent" type="button"><svg class="icon"><use href="#i-plus"/></svg>添加日程</button>
+                <div class="schedule-panel" id="workspaceSchedulePanel"></div>
+              </div>
+            </article>
+          </div>
+
+          <!-- Layer 3: 重要文档 -->
+          <div class="cockpit-section" id="cockpit-docs">
+            <div class="section-header"><h2 class="section-title">重要文档</h2></div>
+            <div class="cockpit-docs-grid">
+              <article class="card">
+                <div class="card-header"><div class="card-title">待办文件</div><button class="card-link" data-open-asset-center="documents">查看全部</button></div>
+                <div class="cockpit-doc-list" id="pendingDocList"></div>
+              </article>
+              <article class="card">
+                <div class="card-header"><div class="card-title">收藏文件</div></div>
+                <div class="cockpit-doc-list" id="favDocList"></div>
+              </article>
+            </div>
+          </div>
+
+          <!-- Layer 4: 常用功能 -->
+          <div class="cockpit-section" id="cockpit-shortcuts">
+            <div class="section-header"><h2 class="section-title">常用功能</h2><div class="section-header-actions"><button class="card-link" id="cockpitEditToggle">编辑</button><button class="card-link" id="cockpitResetEntries" style="display:none">恢复默认</button></div></div>
+            <div class="cockpit-shortcut-grid" id="cockpitShortcutGrid"></div>
+          </div>
+        </section>
+
+        <section class="view" id="portal">
+          <div class="page-heading"><div><h1>企业门户</h1><p>组织信息总览、服务入口和个人数据集中展示</p></div><div class="heading-actions"><button class="btn" id="portalSettingsBtn"><svg class="icon"><use href="#i-settings"/></svg>门户设置</button></div></div>
+          <article class="portal-hero" id="portal-overview"><div><h2>星纪云1.0</h2><p>信息统一入口 · 工作服务中心 · 组织运营总览</p></div></article>
+          <div class="portal-main-grid" id="portal-personal">
+            <article class="card"><div class="card-header"><div class="card-title">个人数据</div><button class="card-link">编辑</button></div><div class="card-body"><div class="profile-box"><div class="profile-photo">?</div><div><strong>欢迎使用星纪云1.0</strong><p>组织机构：—<br />上次登录：—</p></div></div><div class="stat-stack"><div class="stat-tile"><small>我管理的资产</small><strong>13 项</strong></div><div class="stat-tile"><small>待处理任务</small><strong>4 项</strong></div><div class="stat-tile"><small>我的邮箱</small><strong>已绑定</strong></div></div></div></article>
+            <article class="card"><div class="card-header"><div class="card-title">新闻资讯</div><button class="card-link">订阅管理</button></div><div class="feed-list news-list"></div></article>
+          </div>
+          <div class="portal-section" id="portal-systems">
+            <div class="section-header"><h2 class="section-title">信息系统</h2><button class="card-link" id="customSystemBtn">自定义系统</button></div>
+            <div class="system-categories" id="systemCategories"></div>
+            <div class="system-grid" id="systemGrid"></div>
+          </div>
+
+          <footer class="portal-footer" id="portal-footer"><div class="footer-grid"><div><strong>星纪云1.0</strong><p>连接组织、服务与知识，让每个人更快找到下一步。</p></div><div><strong>联系信息</strong><p>地址：企业园区综合服务中心<br />电话：020-12345678 · 邮箱：service@example.com</p></div><div><strong>服务时间</strong><p>工作日 09:00-18:00<br />统一服务台 · 信息安全与合规支持</p></div></div></footer>
+        </section>
+
+        <section class="view" id="subsystem">
+          <div class="page-heading"><div><h1 id="subsystemTitle">子系统</h1><p id="subsystemSummary">平台内部子系统工作台</p></div><div class="heading-actions"><button class="btn" data-view-link="portal"><svg class="icon"><use href="#i-chevron-left"/></svg>返回门户</button></div></div>
+          <div class="internal-shell" id="subsystemContent"></div>
+        </section>
+
+        <section class="view" id="notice-center">
+          <div class="page-heading"><div><h1>公告中心</h1><p>阅读组织公告、通知和培训信息</p></div><div class="heading-actions"><button class="btn" data-view-link="portal"><svg class="icon"><use href="#i-chevron-left"/></svg>返回门户</button></div></div>
+          <div class="internal-shell" id="noticeCenterContent"></div>
+        </section>
+
+        <section class="view" id="document-center">
+          <div class="page-heading"><div><h1>文档中心</h1><p>查看平台内文档目录和知识沉淀资料</p></div><div class="heading-actions"><button class="btn" data-view-link="portal"><svg class="icon"><use href="#i-chevron-left"/></svg>返回门户</button></div></div>
+          <div class="internal-shell" id="documentCenterContent"></div>
+        </section>
+
+        <section class="view" id="resource-center">
+          <div class="page-heading"><div><h1>资源库</h1><p>查看制度、数据、培训和服务资料</p></div><div class="heading-actions"><button class="btn" data-view-link="portal"><svg class="icon"><use href="#i-chevron-left"/></svg>返回门户</button></div></div>
+          <div class="internal-shell" id="resourceCenterContent"></div>
+        </section>
+
+        <section class="view" id="service-center">
+          <div class="page-heading"><div><h1>服务中心</h1><p>查看服务目录、办理说明和支持入口</p></div><div class="heading-actions"><button class="btn" data-view-link="portal"><svg class="icon"><use href="#i-chevron-left"/></svg>返回门户</button></div></div>
+          <div class="internal-shell" id="serviceCenterContent"></div>
+        </section>
+
+        <section class="view" id="news-center">
+          <div class="page-heading"><div><h1>资讯中心</h1><p>查看门户资讯、运营动态和培训通知</p></div><div class="heading-actions"><button class="btn" data-view-link="portal"><svg class="icon"><use href="#i-chevron-left"/></svg>返回门户</button></div></div>
+          <div class="internal-shell" id="newsCenterContent"></div>
+        </section>
+
+        <section class="view" id="portal-dashboard">
+          <div class="page-heading"><div><h1>经营看板</h1><p>来自平台内部任务、日历、子系统和门户资产的统计</p></div><div class="heading-actions"><button class="btn" data-view-link="portal"><svg class="icon"><use href="#i-chevron-left"/></svg>返回门户</button></div></div>
+          <div class="internal-shell" id="portalDashboardContent"></div>
+        </section>
+
+        <section class="view" id="calendar">
+          <div class="page-heading"><div><h1>日历</h1><p>管理会议、日程与团队时间安排</p></div><div class="heading-actions"><button class="btn" data-toast="快速会议已准备"><svg class="icon"><use href="#i-video"/></svg>快速会议</button><button class="btn primary" data-open-modal><svg class="icon"><use href="#i-plus"/></svg>添加日程</button></div></div>
+          <div class="calendar-layout" id="calendar-overview">
+            <aside class="card calendar-sidebar"><h3>我的日历</h3><button class="btn primary full-btn" data-open-modal><svg class="icon"><use href="#i-plus"/></svg>添加日程</button><div class="side-mini-head"><span id="sideMonthTitle">2026 年 7 月</span><span><button id="sidePrev" aria-label="上个月"><svg class="icon" style="width:14px;height:14px"><use href="#i-chevron-left"/></svg></button><button id="sideNext" aria-label="下个月"><svg class="icon" style="width:14px;height:14px"><use href="#i-chevron-right"/></svg></button></span></div><div class="week-labels"><span>一</span><span>二</span><span>三</span><span>四</span><span>五</span><span>六</span><span>日</span></div><div class="month-grid" id="sideMonth"></div><div class="calendar-search" style="margin-top:18px"><svg class="icon"><use href="#i-search"/></svg><input placeholder="搜索联系人/会议室" /></div><div class="check-list"><label class="check-line"><input type="checkbox" checked />我的日程</label><label class="check-line"><input type="checkbox" checked style="accent-color:var(--orange)" />待办</label><label class="check-line"><input type="checkbox" checked style="accent-color:var(--green)" />团队日历</label></div></aside>
+            <div class="card calendar-main"><div class="calendar-toolbar"><div class="toolbar-left"><button class="btn" id="todayButton">今天</button><button class="btn icon-only" id="calendarPrev" aria-label="上个月"><svg class="icon"><use href="#i-chevron-left"/></svg></button><button class="btn icon-only" id="calendarNext" aria-label="下个月"><svg class="icon"><use href="#i-chevron-right"/></svg></button><h2 id="calendarMonthTitle">2026 年 7 月</h2></div><div class="toolbar-right"><div class="segmented" id="calendarMode"><button class="active" data-calendar-mode="month">月</button><button data-calendar-mode="week">周</button><button data-calendar-mode="day">日</button></div><button class="btn" data-toast="会议室列表已打开">会议室</button><button class="btn icon-only" aria-label="搜索会议室"><svg class="icon"><use href="#i-search"/></svg></button><button class="btn icon-only" aria-label="更多操作"><svg class="icon"><use href="#i-more"/></svg></button></div></div><div id="calendarCanvas"></div></div>
+          </div>
+        </section>
+
+        <section class="view" id="knowledge">
+          <div class="ai-workbench" id="aiWorkbench">
+            <!-- Left panel: Knowledge source selection -->
+            <aside class="ai-left" id="aiLeft">
+              <div class="ai-left-top">
+                <div class="ai-left-search">
+                  <svg class="icon"><use href="#i-search"/></svg>
+                  <input id="aiLeftSearchInput" placeholder="搜索当前资料" />
+                </div>
+              </div>
+              <div class="ai-left-bottom" id="aiLeftBottom"></div>
+              <div class="ai-resizer" id="aiResizer" role="separator" aria-orientation="vertical"></div>
+            </aside>
+            <!-- Right panel: AI chat area -->
+            <div class="ai-right" id="aiRight">
+              <!-- Chat column -->
+              <div class="ai-chat" id="aiChat">
+                <button class="btn icon-only ai-mobile-toggle" id="aiMobileToggle" title="打开知识库"><svg class="icon"><use href="#i-book"/></svg></button>
+                <div class="chat-transcript" id="chatTranscript"></div>
+                <button class="chat-scroll-bottom" id="chatScrollBottom" hidden>↓ 回到底部</button>
+                <div class="context-chips" id="contextChips">
+                  <span class="chips-label">上下文</span>
+                  <div class="chips-wrap" id="contextChipsWrap"></div>
+                  <button class="chips-clear" id="clearContextChips">清空全部</button>
+                </div>
+                <div class="chat-input-card">
+                  <textarea id="chatInput" class="chat-input-field" placeholder="输入问题或指令，Enter 发送，Shift+Enter 换行" rows="1"></textarea>
+                  <div class="chat-input-toolbar">
+                    <span class="plus-wrap">
+                      <button class="plus-btn-minimal" id="chatPlusBtn" title="更多操作"><svg class="icon"><use href="#i-plus"/></svg></button>
+                      <div class="plus-popover" id="chatPlusPopover" hidden>
+                  <button data-plus-action="upload"><svg class="icon"><use href="#i-upload"/></svg>上传文件</button>
+                  <button data-plus-action="link"><svg class="icon"><use href="#i-chevron-right"/></svg>粘贴链接</button>
+                  <button data-plus-action="pick-kb"><svg class="icon"><use href="#i-book"/></svg>选择知识库</button>
+                  <hr />
+                  <button data-plus-action="cmd-create" data-quick-cmd="帮我创建一个任务："><svg class="icon"><use href="#i-check"/></svg>创建任务</button>
+                  <button data-plus-action="cmd-schedule" data-quick-cmd="帮我添加一个日程："><svg class="icon"><use href="#i-calendar"/></svg>添加日程</button>
+                  <button data-plus-action="cmd-done" data-quick-cmd="标记完成任务："><svg class="icon"><use href="#i-check"/></svg>标记完成</button>
+                  <button data-plus-action="cmd-delete" data-quick-cmd="删除任务："><svg class="icon"><use href="#i-close"/></svg>删除任务</button>
+                  <hr />
+                  <button data-plus-action="save-template"><svg class="icon"><use href="#i-star"/></svg>保存当前输入为模板</button>
+                </div>
+                </span>
+                <select id="chatModeSelect" class="mode-select" title="回答模式">
+                  <option value="auto" selected>智能</option>
+                  <option value="rag">知识库检索</option>
+                  <option value="chat">纯对话</option>
+                </select>
+                <div class="toolbar-spacer"></div>
+                <button class="send-btn-circle" id="chatSendBtn" disabled title="发送">
+                  <svg class="icon send-arrow"><use href="#i-arrow-up"/></svg>
+                  <span class="btn-spinner"></span>
+                </button>
+              </div>
+            </div>
+            <input type="file" id="chatFileInput" hidden multiple />
+              </div>
+            </div>
+          </div>
+          <div class="ai-mobile-overlay" id="aiMobileOverlay" hidden></div>
+        </section>
+
+        <section class="view" id="feishu">
+          <div class="page-heading">
+            <div><h1>飞书</h1><p>飞书工作入口以 iframe 方式嵌入到统一门户</p></div>
+            <div class="heading-actions"><button class="btn" data-embed-refresh="feishu"><svg class="icon"><use href="#i-refresh"/></svg>刷新</button><button class="btn primary" data-embed-open="feishu"><svg class="icon"><use href="#i-external"/></svg>新窗口打开</button></div>
+          </div>
+          <div class="embed-shell" id="feishu-overview">
+            <article class="card embed-card" id="feishu-frame-card">
+              <div class="embed-toolbar" id="feishu-settings">
+                <div class="embed-address">
+                  <svg class="icon"><use href="#i-search"/></svg>
+                  <input id="feishuUrl" data-embed-input="feishu" value="https://www.feishu.cn/" aria-label="飞书嵌入地址" />
+                </div>
+                <div class="embed-actions">
+                  <span class="embed-status">iframe</span>
+                  <button class="btn" data-embed-apply="feishu">载入</button>
+                </div>
+              </div>
+              <div class="embed-frame-wrap">
+                <iframe class="embed-frame" id="feishuFrame" title="飞书嵌入页面" src="https://www.feishu.cn/" loading="lazy" referrerpolicy="strict-origin-when-cross-origin"></iframe>
+              </div>
+            </article>
+          </div>
+        </section>
+
+        <section class="view" id="dingtalk">
+          <div class="page-heading">
+            <div><h1>钉钉</h1><p>钉钉工作入口以 iframe 方式嵌入到统一门户</p></div>
+            <div class="heading-actions"><button class="btn" data-embed-refresh="dingtalk"><svg class="icon"><use href="#i-refresh"/></svg>刷新</button><button class="btn primary" data-embed-open="dingtalk"><svg class="icon"><use href="#i-external"/></svg>新窗口打开</button></div>
+          </div>
+          <div class="embed-shell" id="dingtalk-overview">
+            <article class="card embed-card" id="dingtalk-frame-card">
+              <div class="embed-toolbar" id="dingtalk-settings">
+                <div class="embed-address">
+                  <svg class="icon"><use href="#i-search"/></svg>
+                  <input id="dingtalkUrl" data-embed-input="dingtalk" value="https://www.dingtalk.com/" aria-label="钉钉嵌入地址" />
+                </div>
+                <div class="embed-actions">
+                  <span class="embed-status">iframe</span>
+                  <button class="btn" data-embed-apply="dingtalk">载入</button>
+                </div>
+              </div>
+              <div class="embed-frame-wrap">
+                <iframe class="embed-frame" id="dingtalkFrame" title="钉钉嵌入页面" src="https://www.dingtalk.com/" loading="lazy" referrerpolicy="strict-origin-when-cross-origin"></iframe>
+              </div>
+            </article>
+          </div>
+        </section>
+
+        <div id="customWebsiteViews"></div>
+
+        <section class="view" id="admin">
+          <div class="page-heading">
+            <div><h1>管理后台</h1><p>用户管理 · 审计日志 · 会话监控 · 异常统计</p></div>
+            <div class="heading-actions"><button class="btn primary" id="adminAddUserBtn"><svg class="icon"><use href="#i-plus"/></svg>添加账号</button></div>
+          </div>
+          <!-- Sub-tabs -->
+          <nav class="admin-subtabs" id="adminSubtabs">
+            <button class="admin-subtab active" data-admin-panel="users">用户管理</button>
+            <button class="admin-subtab" data-admin-panel="audit">审计日志</button>
+            <button class="admin-subtab" data-admin-panel="aiquery">AI查询</button>
+            <button class="admin-subtab" data-admin-panel="sessions">会话管理</button>
+            <button class="admin-subtab" data-admin-panel="news">资讯管理</button>
+            <button class="admin-subtab" data-admin-panel="anomalies" id="adminAnomalyTab">异常统计<span class="subtab-badge warn" id="adminAnomalyBadge" hidden>0</span></button>
+          </nav>
+
+          <!-- Panel: Users -->
+          <div class="admin-panel active" id="adminPanelUsers">
+            <div class="admin-grid">
+              <article class="card admin-card-users">
+                <div class="card-header">
+                  <div class="card-title">用户列表 <span class="admin-count" id="adminUserCount"></span></div>
+                  <div style="display:flex;gap:8px;align-items:center">
+                    <input type="search" id="adminUserSearch" placeholder="搜索用户名或显示名…" style="width:200px;padding:5px 10px;border:1px solid var(--line);border-radius:6px;font-size:12px" />
+                    <button class="card-link" id="adminRefreshBtn"><svg class="icon"><use href="#i-refresh"/></svg>刷新</button>
+                  </div>
+                </div>
+                <div class="card-body" style="padding:0;overflow-x:auto">
+                  <table class="admin-table">
+                    <thead><tr><th style="width:36px"></th><th>用户名</th><th>显示名</th><th>邮箱</th><th>角色</th><th>状态</th><th>最后登录</th><th>操作</th></tr></thead>
+                    <tbody id="adminUserTableBody"></tbody>
+                  </table>
+                  <div id="adminPagination" style="display:flex;justify-content:space-between;align-items:center;padding:12px 18px;border-top:1px solid var(--line);font-size:12px;color:var(--muted)">
+                    <span id="adminPageInfo"></span>
+                    <div style="display:flex;gap:4px">
+                      <button class="btn btn-sm" id="adminPagePrev" disabled>上一页</button>
+                      <button class="btn btn-sm" id="adminPageNext" disabled>下一页</button>
+                    </div>
+                  </div>
+                </div>
+              </article>
+              <article class="card admin-card-roles">
+                <div class="card-header"><div class="card-title">角色概览</div></div>
+                <div class="card-body" style="padding:0">
+                  <div class="admin-role-list" id="adminRoleList"></div>
+                </div>
+              </article>
+            </div>
+          </div>
+
+          <!-- Panel: Audit Logs -->
+          <div class="admin-panel" id="adminPanelAudit">
+            <div class="admin-grid">
+              <article class="card">
+                <div class="card-header">
+                  <div class="card-title">审计日志 <span class="admin-count" id="adminAuditCount"></span></div>
+                  <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+                    <input type="search" id="adminAuditAction" placeholder="动作筛选…" style="width:150px;padding:5px 10px;border:1px solid var(--line);border-radius:6px;font-size:12px" />
+                    <select id="adminAuditDecision" style="padding:5px 8px;border:1px solid var(--line);border-radius:6px;font-size:12px">
+                      <option value="">全部决定</option><option value="allow">allow</option><option value="deny">deny</option>
+                    </select>
+                    <button class="card-link" id="adminAuditRefresh"><svg class="icon"><use href="#i-refresh"/></svg>刷新</button>
+                  </div>
+                </div>
+                <div class="card-body" style="padding:0;overflow-x:auto">
+                  <table class="admin-table">
+                    <thead><tr><th>时间</th><th>动作</th><th>用户ID</th><th>决定</th><th>原因</th><th>IP</th></tr></thead>
+                    <tbody id="adminAuditTableBody"></tbody>
+                  </table>
+                  <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 18px;border-top:1px solid var(--line);font-size:12px;color:var(--muted)">
+                    <span id="adminAuditPageInfo"></span>
+                    <div style="display:flex;gap:4px">
+                      <button class="btn btn-sm" id="adminAuditPagePrev" disabled>上一页</button>
+                      <button class="btn btn-sm" id="adminAuditPageNext" disabled>下一页</button>
+                    </div>
+                  </div>
+                </div>
+              </article>
+            </div>
+          </div>
+
+          <!-- Panel: AI Queries -->
+          <div class="admin-panel" id="adminPanelAIQuery">
+            <div class="admin-grid">
+              <article class="card">
+                <div class="card-header">
+                  <div class="card-title">AI查询记录 <span class="admin-count" id="adminAIQueryCount"></span></div>
+                  <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+                    <select id="adminAIQueryDecision" style="padding:5px 8px;border:1px solid var(--line);border-radius:6px;font-size:12px">
+                      <option value="">全部</option><option value="allowed">allowed</option><option value="blocked">blocked</option>
+                    </select>
+                    <select id="adminAIQueryRisk" style="padding:5px 8px;border:1px solid var(--line);border-radius:6px;font-size:12px">
+                      <option value="">全部风险</option><option value="GENERAL">GENERAL</option><option value="PROMPT_INJECTION">INJECTION</option><option value="PERSONNEL_SENSITIVE">PERSONNEL</option><option value="FINANCIAL_SENSITIVE">FINANCIAL</option>
+                    </select>
+                    <button class="card-link" id="adminAIQueryRefresh"><svg class="icon"><use href="#i-refresh"/></svg>刷新</button>
+                  </div>
+                </div>
+                <div class="card-body" style="padding:0;overflow-x:auto">
+                  <table class="admin-table">
+                    <thead><tr><th>时间</th><th>用户ID</th><th>Query Hash</th><th>Snippet</th><th>风险</th><th>决定</th><th>耗时(ms)</th></tr></thead>
+                    <tbody id="adminAIQueryTableBody"></tbody>
+                  </table>
+                  <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 18px;border-top:1px solid var(--line);font-size:12px;color:var(--muted)">
+                    <span id="adminAIQueryPageInfo"></span>
+                    <div style="display:flex;gap:4px">
+                      <button class="btn btn-sm" id="adminAIQueryPagePrev" disabled>上一页</button>
+                      <button class="btn btn-sm" id="adminAIQueryPageNext" disabled>下一页</button>
+                    </div>
+                  </div>
+                </div>
+              </article>
+            </div>
+          </div>
+
+          <!-- Panel: Sessions -->
+          <div class="admin-panel" id="adminPanelSessions">
+            <div class="admin-grid">
+              <article class="card">
+                <div class="card-header">
+                  <div class="card-title">活跃会话 <span class="admin-count" id="adminSessionCount"></span></div>
+                  <div style="display:flex;gap:8px;align-items:center">
+                    <label style="font-size:12px;color:var(--muted);display:flex;align-items:center;gap:4px">
+                      <input type="checkbox" id="adminSessionActiveOnly" checked /> 仅活跃
+                    </label>
+                    <button class="card-link" id="adminSessionRefresh"><svg class="icon"><use href="#i-refresh"/></svg>刷新</button>
+                  </div>
+                </div>
+                <div class="card-body" style="padding:0;overflow-x:auto">
+                  <table class="admin-table">
+                    <thead><tr><th>会话ID</th><th>用户</th><th>IP</th><th>创建时间</th><th>过期时间</th><th>状态</th><th>操作</th></tr></thead>
+                    <tbody id="adminSessionTableBody"></tbody>
+                  </table>
+                  <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 18px;border-top:1px solid var(--line);font-size:12px;color:var(--muted)">
+                    <span id="adminSessionPageInfo"></span>
+                    <div style="display:flex;gap:4px">
+                      <button class="btn btn-sm" id="adminSessionPagePrev" disabled>上一页</button>
+                      <button class="btn btn-sm" id="adminSessionPageNext" disabled>下一页</button>
+                    </div>
+                  </div>
+                </div>
+              </article>
+            </div>
+          </div>
+
+          <!-- Panel: News -->
+          <div class="admin-panel" id="adminPanelNews">
+            <article class="card">
+              <div class="card-header">
+                <div class="card-title">资讯管理</div>
+                <button class="btn primary btn-sm" id="adminNewsAddBtn">新建资讯</button>
+              </div>
+              <div class="card-body" style="padding:0;overflow-x:auto">
+                <table class="admin-table">
+                  <thead><tr><th>标题</th><th>来源</th><th>分类</th><th>发布时间</th><th>置顶</th><th>操作</th></tr></thead>
+                  <tbody id="adminNewsTableBody"></tbody>
+                </table>
+                <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 18px;border-top:1px solid var(--line);font-size:12px;color:var(--muted)">
+                  <span id="adminNewsPageInfo"></span>
+                  <div style="display:flex;gap:4px">
+                    <button class="btn btn-sm" id="adminNewsPagePrev" disabled>上一页</button>
+                    <button class="btn btn-sm" id="adminNewsPageNext" disabled>下一页</button>
+                  </div>
+                </div>
+              </div>
+            </article>
+          </div>
+
+          <!-- Panel: Anomalies -->
+          <div class="admin-panel" id="adminPanelAnomalies">
+            <div class="anomaly-grid" id="adminAnomalyGrid">
+              <div class="anomaly-card"><span>总用户</span><strong id="anomTotalUsers">-</strong></div>
+              <div class="anomaly-card info"><span>活跃用户</span><strong id="anomActiveUsers">-</strong></div>
+              <div class="anomaly-card"><span>禁用用户</span><strong id="anomDisabledUsers">-</strong></div>
+              <div class="anomaly-card info"><span>活跃会话</span><strong id="anomActiveSessions">-</strong></div>
+              <div class="anomaly-card warn"><span>24h 登录失败</span><strong id="anomFailedLogins">-</strong></div>
+              <div class="anomaly-card warn"><span>24h 403拒绝</span><strong id="anom403">-</strong></div>
+              <div class="anomaly-card warn"><span>24h AI阻断</span><strong id="anomAIBlocks">-</strong></div>
+              <div class="anomaly-card warn"><span>24h 注入拦截</span><strong id="anomInjections">-</strong></div>
+            </div>
+            <div style="display:flex;gap:8px">
+              <button class="card-link" id="adminAnomalyRefresh"><svg class="icon"><use href="#i-refresh"/></svg>刷新统计</button>
+            </div>
+          </div>
+        </section>
+
+        <section class="view" id="org-structure">
+          <div class="page-heading">
+            <div><h1>组织架构</h1><p>企业组织架构与人员信息</p></div>
+          </div>
+          <div class="card" style="text-align:center;padding:48px 24px">
+            <div style="font-size:48px;margin-bottom:12px;opacity:.3">🏢</div>
+            <p style="color:var(--muted)">组织架构模块建设中，敬请期待。</p>
+          </div>
+        </section>
+
+      </main>
+      </div>
+    </div>
+  </div>
+  </div>
+
+  <div class="notification-dropdown" id="notificationDropdown"></div>
+  <div class="popover" id="userPopover"><h3 id="popoverName">未登录</h3><div class="popover-item" id="popoverDept">—<small>个人信息与账号设置</small></div><div class="popover-item" id="popoverPrefs">偏好设置<small>通知、主题与快捷入口</small></div><button class="btn" style="width:100%;margin-top:10px" id="logoutButton">退出登录</button></div>
+  <div class="modal-backdrop" id="eventModal"><div class="modal" role="dialog" aria-modal="true" aria-labelledby="eventModalTitle"><div class="modal-header"><h2 id="eventModalTitle">添加日程</h2><button class="btn icon-only" data-close-modal aria-label="关闭"><svg class="icon"><use href="#i-close"/></svg></button></div><form id="eventForm"><div class="form-grid"><div class="field"><label for="eventName">日程主题</label><input id="eventName" required placeholder="例如：部门周例会" /></div><div class="field"><label for="eventDate">日期</label><input id="eventDate" type="date" required /></div><div class="field"><label id="eventToneLabel">日程颜色</label><div class="tone-options" id="eventTone" role="radiogroup" aria-labelledby="eventToneLabel"><label class="tone-option blue"><input type="radio" name="eventTone" value="blue" checked /><span class="tone-dot"></span><span>蓝色</span></label><label class="tone-option green"><input type="radio" name="eventTone" value="green" /><span class="tone-dot"></span><span>绿色</span></label><label class="tone-option orange"><input type="radio" name="eventTone" value="orange" /><span class="tone-dot"></span><span>橙色</span></label></div></div><div class="field"><label for="eventNote">备注</label><textarea id="eventNote" placeholder="补充会议地点、参与人或事项说明"></textarea></div></div><div class="modal-actions"><button type="button" class="btn danger" id="eventDeleteButton" hidden>删除日程</button><button type="button" class="btn" data-close-modal>取消</button><button class="btn primary" type="submit">保存日程</button></div></form></div></div>
+  <div class="modal-backdrop" id="searchModal"><div class="modal search-modal" role="dialog" aria-modal="true" aria-labelledby="searchModalTitle"><div class="modal-header"><h2 id="searchModalTitle">全局搜索</h2><button class="btn icon-only" data-close-search aria-label="关闭"><svg class="icon"><use href="#i-close"/></svg></button></div><div class="knowledge-search"><svg class="icon"><use href="#i-search"/></svg><input id="globalSearchInput" autofocus placeholder="搜索公告、文档、日程和知识库" /></div><div class="search-results" id="searchResults"><div class="search-result"><strong>输入关键词开始搜索</strong><p>支持搜索子系统、公告、文档、报修、资产、OA 流程等</p></div></div></div></div>
+  <div class="modal-backdrop" id="profileModal"><div class="modal" role="dialog" aria-modal="true" aria-labelledby="profileModalTitle"><div class="modal-header"><h2 id="profileModalTitle">编辑个人资料</h2><button class="btn icon-only" data-close-profile aria-label="关闭"><svg class="icon"><use href="#i-close"/></svg></button></div><form id="profileForm"><div class="form-grid"><div class="field"><label for="profileName">姓名</label><input id="profileName" required placeholder="请输入姓名" /></div><div class="field"><label for="profileDept">部门</label><input id="profileDept" placeholder="请输入部门" /></div><div class="field"><label for="profileEmail">邮箱</label><input id="profileEmail" type="email" placeholder="请输入邮箱" /></div><div class="field"><label for="profilePhone">电话</label><input id="profilePhone" type="tel" placeholder="请输入电话" /></div></div><div class="modal-actions"><button type="button" class="btn" data-close-profile>取消</button><button class="btn primary" type="submit">保存</button></div></form></div></div>
+  <div class="modal-backdrop" id="newsSubModal"><div class="modal sub-modal" role="dialog" aria-modal="true" aria-labelledby="newsSubModalTitle"><div class="modal-header"><h2 id="newsSubModalTitle">订阅新闻来源</h2><button class="btn icon-only" data-close-news-sub aria-label="关闭"><svg class="icon"><use href="#i-close"/></svg></button></div><div class="sub-grid" id="newsSubGrid"></div><div class="modal-actions"><button type="button" class="btn" data-close-news-sub>取消</button><button class="btn primary" id="saveNewsSubsBtn">保存订阅</button></div></div></div>
+  <div class="modal-backdrop" id="serviceSubModal"><div class="modal sub-modal" role="dialog" aria-modal="true" aria-labelledby="serviceSubModalTitle"><div class="modal-header"><h2 id="serviceSubModalTitle">订阅服务</h2><button class="btn icon-only" data-close-service-sub aria-label="关闭"><svg class="icon"><use href="#i-close"/></svg></button></div><div class="sub-grid" id="serviceSubGrid"></div><div class="modal-actions"><button type="button" class="btn" data-close-service-sub>取消</button><button class="btn primary" id="saveServiceSubsBtn">保存订阅</button></div></div></div>
+  <!-- ── AI: KB manage modal ────────────────────── -->
+  <div class="modal-backdrop" id="aiKbModal"><div class="modal" style="max-width:560px" role="dialog" aria-modal="true" aria-labelledby="aiKbModalTitle"><div class="modal-header"><h2 id="aiKbModalTitle">知识库设置</h2><button class="btn icon-only" data-modal-close aria-label="关闭"><svg class="icon"><use href="#i-close"/></svg></button></div><form id="aiKbForm"><div class="form-grid"><div class="field"><label for="aiKbName">显示名称</label><input id="aiKbName" required placeholder="知识库显示名称" /></div><div class="field"><label for="aiKbResourceType">资源类型</label><select id="aiKbResourceType"><option value="link">链接</option><option value="file">文件</option></select></div><div class="field" id="aiKbUrlField"><label for="aiKbUrl">链接地址</label><input id="aiKbUrl" type="url" placeholder="https://..." /></div><div class="field"><label><input type="checkbox" id="aiKbEnabled" checked /> 启用</label></div></div><div class="modal-actions"><button type="button" class="btn danger" id="aiKbDeleteBtn" hidden>删除知识条目</button><button type="button" class="btn" data-modal-close>取消</button><button class="btn primary" type="submit">保存</button></div></form></div></div>
+  <div class="modal-backdrop" id="aiUploadModal"><div class="modal" role="dialog" aria-modal="true" aria-labelledby="aiUploadModalTitle"><div class="modal-header"><h2 id="aiUploadModalTitle">上传到知识库</h2><button class="btn icon-only" data-modal-close aria-label="关闭"><svg class="icon"><use href="#i-close"/></svg></button></div><form id="aiUploadForm"><div class="form-grid"><div class="field"><label for="aiUploadCollection">上传到文件夹</label><div class="inline-field"><select id="aiUploadCollection" required><option value="">请选择文件夹</option></select><button class="btn" type="button" id="aiCreateCollectionButton">新建文件夹</button></div></div><div class="field"><label for="aiKbFileInput">选择文件</label><input id="aiKbFileInput" type="file" required /></div><p class="form-hint" id="aiUploadStatus">文件必须归属到一个知识库文件夹。</p></div><div class="modal-actions"><button type="button" class="btn" data-modal-close>取消</button><button class="btn primary" type="submit">开始上传</button></div></form></div></div>
+  <!-- ── AI: Add link modal ─────────────────────── -->
+  <div class="modal-backdrop" id="aiLinkModal"><div class="modal" role="dialog" aria-modal="true" aria-labelledby="aiLinkModalTitle"><div class="modal-header"><h2 id="aiLinkModalTitle">添加链接</h2><button class="btn icon-only" data-modal-close aria-label="关闭"><svg class="icon"><use href="#i-close"/></svg></button></div><form id="aiLinkForm"><div class="form-grid"><div class="field"><label for="aiLinkTitle">链接名称</label><input id="aiLinkTitle" required placeholder="例如：公司官网" /></div><div class="field"><label for="aiLinkUrl">URL 地址</label><input id="aiLinkUrl" type="url" required placeholder="https://..." /></div></div><div class="modal-actions"><button type="button" class="btn" data-modal-close>取消</button><button class="btn primary" type="submit">保存</button></div></form></div></div>
+  <!-- ── AI: Template modal (fill / save) ──────── -->
+  <div class="modal-backdrop" id="aiDomainModal"><div class="modal" role="dialog" aria-modal="true" aria-labelledby="aiDomainModalTitle"><div class="modal-header"><h2 id="aiDomainModalTitle">新建领域</h2><button class="btn icon-only" data-modal-close aria-label="关闭"><svg class="icon"><use href="#i-close"/></svg></button></div><form id="aiDomainForm"><div class="form-grid"><div class="field"><label for="aiDomainName">领域名称</label><input id="aiDomainName" required placeholder="例如：招聘面试" /></div><div class="field"><label for="aiDomainDescription">领域说明</label><textarea id="aiDomainDescription" rows="3" placeholder="说明这个领域用于沉淀什么经验"></textarea></div></div><div class="modal-actions"><button type="button" class="btn" data-modal-close>取消</button><button class="btn primary" type="submit">创建领域</button></div></form></div></div>
+  <div class="modal-backdrop" id="aiMethodModal"><div class="modal" role="dialog" aria-modal="true" aria-labelledby="aiMethodModalTitle"><div class="modal-header"><h2 id="aiMethodModalTitle">新建经验方法</h2><button class="btn icon-only" data-modal-close aria-label="关闭"><svg class="icon"><use href="#i-close"/></svg></button></div><form id="aiMethodForm"><div class="form-grid"><div class="field"><label for="aiMethodDomain">所属领域</label><select id="aiMethodDomain" required></select></div><div class="field"><label for="aiMethodTitle">方法名称</label><input id="aiMethodTitle" required placeholder="经验方法名称" /></div><div class="field"><label for="aiMethodSourceType">内容来源</label><select id="aiMethodSourceType"><option value="human">人工经验</option><option value="ai_summary">AI总结</option></select></div><div class="field"><label for="aiMethodContent">方法内容</label><textarea id="aiMethodContent" required rows="7" placeholder="填写经过确认的经验方法或 AI 总结内容"></textarea></div><div class="field"><label for="aiMethodSourceReference">来源引用（可选）</label><input id="aiMethodSourceReference" placeholder="会话、文档或其他来源" /></div></div><div class="modal-actions"><button type="button" class="btn" data-modal-close>取消</button><button class="btn primary" type="submit">保存方法</button></div></form></div></div>
+  <div class="modal-backdrop" id="aiTemplateModal"><div class="modal" role="dialog" aria-modal="true" aria-labelledby="aiTemplateModalTitle"><div class="modal-header"><h2 id="aiTemplateModalTitle">模板</h2><button class="btn icon-only" data-modal-close aria-label="关闭"><svg class="icon"><use href="#i-close"/></svg></button></div><form id="aiTemplateForm"><div class="form-grid"><div class="field" id="aiTemplateNameField"><label for="aiTemplateName">模板名称</label><input id="aiTemplateName" required placeholder="模板名称" /></div><div id="aiTemplateVars"></div><div class="field"><label for="aiTemplateContent">模板内容</label><textarea id="aiTemplateContent" required placeholder="输入模板内容，使用 {{变量名}} 作为占位符" rows="4"></textarea></div></div><div class="modal-actions"><button type="button" class="btn danger" id="aiTemplateDeleteBtn" hidden>删除模板</button><button type="button" class="btn" data-modal-close>取消</button><button class="btn primary" type="submit">确认</button></div></form></div></div>
+  <!-- ── Admin: news modal ─────────────────────────── -->
+  <div class="modal-backdrop" id="adminNewsModal"><div class="modal" role="dialog" aria-modal="true" aria-labelledby="adminNewsModalTitle"><div class="modal-header"><h2 id="adminNewsModalTitle">编辑资讯</h2><button class="btn icon-only" data-close-modal aria-label="关闭"><svg class="icon"><use href="#i-close"/></svg></button></div><form id="adminNewsForm"><div class="form-grid"><div class="field"><label for="adminNewsTitle">标题</label><input id="adminNewsTitle" required placeholder="资讯标题" /></div><div class="field"><label for="adminNewsSource">来源</label><input id="adminNewsSource" required placeholder="例如：企业资讯" /></div><div class="field"><label for="adminNewsCategory">分类</label><input id="adminNewsCategory" required placeholder="例如：通知公告" /></div><div class="field"><label for="adminNewsPublishedAt">发布时间</label><input id="adminNewsPublishedAt" type="datetime-local" required /></div><div class="field"><label for="adminNewsBody">正文</label><textarea id="adminNewsBody" required placeholder="资讯正文内容" rows="5"></textarea></div><div class="field"><label><input type="checkbox" id="adminNewsPinned" /> 置顶</label></div></div><div class="modal-actions"><button type="button" class="btn danger" id="adminNewsDeleteBtn" hidden>删除资讯</button><button type="button" class="btn" data-close-modal>取消</button><button class="btn primary" type="submit">保存</button></div></form></div></div>
+
+  <!-- ── Admin: publish notice modal ──────────────────── -->
+  <div class="modal-backdrop" id="noticePublishModal"><div class="modal" role="dialog" aria-modal="true" aria-labelledby="noticePublishModalTitle"><div class="modal-header"><h2 id="noticePublishModalTitle">发布公告</h2><button class="btn icon-only" data-close-modal aria-label="关闭"><svg class="icon"><use href="#i-close"/></svg></button></div><form id="noticePublishForm"><div class="form-grid"><div class="field"><label for="noticePublishTitle">标题</label><input id="noticePublishTitle" required placeholder="公告标题" /></div><div class="field"><label for="noticePublishSource">发布部门</label><input id="noticePublishSource" required placeholder="例如：党政办公室" /></div><div class="field"><label for="noticePublishCategory">分类</label><input id="noticePublishCategory" required placeholder="例如：通知公告" /></div><div class="field"><label for="noticePublishPublishedAt">发布时间</label><input id="noticePublishPublishedAt" type="datetime-local" required /></div><div class="field"><label for="noticePublishBody">正文</label><textarea id="noticePublishBody" required placeholder="公告正文内容" rows="5"></textarea></div><div class="field"><label for="noticePublishVisibility">可见范围</label><select id="noticePublishVisibility"><option value="org">本组织</option><option value="dept">本部门</option><option value="public">公开</option></select></div></div><div class="modal-actions"><button type="button" class="btn" data-close-modal>取消</button><button class="btn primary" type="submit">发布</button></div></form></div></div>
+
+  <!-- ── Admin: create user modal ─────────────────── -->
+  <div class="modal-backdrop" id="adminUserModal">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="adminUserModalTitle">
+      <div class="modal-header"><h2 id="adminUserModalTitle">添加账号</h2><button class="btn icon-only" data-close-admin-user aria-label="关闭"><svg class="icon"><use href="#i-close"/></svg></button></div>
+      <form id="adminUserForm">
+        <div class="form-grid">
+          <div class="field"><label for="adminUsername">用户名</label><input id="adminUsername" required maxlength="64" placeholder="登录用户名" /></div>
+          <div class="field"><label for="adminPassword">密码</label><input id="adminPassword" type="password" required minlength="8" maxlength="72" placeholder="至少 8 位" /></div>
+          <div class="field"><label for="adminDisplayName">显示名</label><input id="adminDisplayName" maxlength="64" placeholder="默认同用户名" /></div>
+          <div class="field"><label for="adminEmail">邮箱</label><input id="adminEmail" type="email" maxlength="128" placeholder="可选" /></div>
+          <div class="field"><label for="adminIsAdmin">账号类型</label><select id="adminIsAdmin"><option value="regular">普通成员</option><option value="admin">管理员（super_admin）</option></select></div>
+        </div>
+        <div class="modal-actions"><button type="button" class="btn" data-close-admin-user>取消</button><button class="btn primary" type="submit">创建账号</button></div>
+      </form>
+    </div>
+  </div>
+  <!-- ── Admin: role edit modal ──────────────────── -->
+  <div class="modal-backdrop" id="adminKbAuthModal">
+    <div class="modal" style="max-width:560px" role="dialog" aria-modal="true" aria-labelledby="adminKbAuthModalTitle">
+      <div class="modal-header"><h2 id="adminKbAuthModalTitle">分配角色</h2><button class="btn icon-only" data-close-admin-kb aria-label="关闭"><svg class="icon"><use href="#i-close"/></svg></button></div>
+      <p style="padding:14px 20px 0;color:#8a94a6">为 <strong id="adminKbAuthUserName"></strong> 分配角色，勾选后保存生效。</p>
+      <div class="kb-auth-role-list" id="adminKbAuthRoleList" style="padding:6px 20px;max-height:360px;overflow-y:auto"></div>
+      <div class="modal-actions"><button type="button" class="btn" data-close-admin-kb>取消</button><button class="btn primary" id="adminKbAuthSaveBtn">保存角色</button></div>
+    </div>
+  </div>
+  <!-- ── Admin: reset password modal ──────────────────── -->
+  <div class="modal-backdrop" id="adminResetPwdModal">
+    <div class="modal sub-modal" role="dialog" aria-modal="true" aria-labelledby="adminResetPwdModalTitle">
+      <div class="modal-header"><h2 id="adminResetPwdModalTitle">重置用户密码</h2><button class="btn icon-only" data-close-admin-reset-pwd aria-label="关闭"><svg class="icon"><use href="#i-close"/></svg></button></div>
+      <!-- Step 1: configure -->
+      <div id="adminResetPwdStep1" style="padding:16px 20px">
+        <p style="color:#8a94a6;margin:0 0 12px">为 <strong id="adminResetPwdUserName"></strong> 重置密码。用户下次登录将被要求修改密码，且所有现有会话将失效。</p>
+        <div style="margin-bottom:12px">
+          <label style="display:flex;align-items:center;gap:8px;margin-bottom:8px;cursor:pointer"><input type="radio" name="adminPwdMode" value="auto" id="adminPwdModeAuto" checked> <span>自动生成强密码（推荐）</span></label>
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="radio" name="adminPwdMode" value="custom" id="adminPwdModeCustom"> <span>自定义密码</span></label>
+        </div>
+        <div class="field" id="adminResetPwdCustomField" style="display:none"><label for="adminResetPwdInput">新密码（至少 8 位）</label><input id="adminResetPwdInput" type="password" minlength="8" maxlength="72" placeholder="至少 8 位字符" /></div>
+      </div>
+      <!-- Step 2: result -->
+      <div id="adminResetPwdStep2" hidden style="padding:16px 20px">
+        <div style="background:#fff3cd;border:1px solid #ffc107;border-radius:8px;padding:12px;margin-bottom:16px">
+          <strong style="color:#856404">⚠ 新密码仅显示一次</strong>
+          <p style="color:#856404;margin:6px 0 0;font-size:13px">请立即复制保存。关闭此窗口后密码将不再显示。</p>
+        </div>
+        <div class="field"><label>用户名</label><strong id="adminResetPwdOutputUser" style="display:block;padding:8px 0"></strong></div>
+        <div class="field"><label>新密码</label><code id="adminResetPwdOutput" style="display:block;padding:10px 12px;background:#f5f5f5;border-radius:6px;font-size:20px;font-family:monospace;word-break:break-all;user-select:all"></code></div>
+        <button class="btn" id="adminResetPwdCopyBtn" style="margin-top:8px">📋 复制密码</button>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn" data-close-admin-reset-pwd id="adminResetPwdCancelBtn">取消</button>
+        <button class="btn primary" id="adminResetPwdConfirmBtn">确认重置</button>
+        <button class="btn primary" id="adminResetPwdDoneBtn" hidden>我已保存密码</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <!-- ── Auth: login / register overlay ─────────────────── -->
+  <div class="login-overlay" id="loginOverlay">
+    <div class="login-card">
+      <h2 id="loginCardTitle">登录</h2>
+      <p class="login-sub" id="loginCardSub">使用你的账号登录星纪云1.0</p>
+      <div class="login-error" id="loginError"></div>
+      <form id="loginForm">
+        <div class="field" id="regDisplayNameField" style="display:none">
+          <label for="regDisplayName">显示名称</label>
+          <input id="regDisplayName" autocomplete="name" placeholder="你的姓名或昵称（可选）" />
+        </div>
+        <div class="field" id="regEmailField" style="display:none">
+          <label for="regEmail">邮箱</label>
+          <input id="regEmail" type="email" autocomplete="email" placeholder="your@email.com（可选）" />
+        </div>
+        <div class="field">
+          <label for="loginUsername">用户名</label>
+          <input id="loginUsername" autocomplete="username" placeholder="请输入用户名" required />
+        </div>
+        <div class="field">
+          <label for="loginPassword">密码</label>
+          <input id="loginPassword" type="password" autocomplete="current-password" placeholder="请输入密码" required />
+        </div>
+        <div class="login-actions">
+          <button type="submit" class="btn primary" id="loginSubmitBtn">登录</button>
+        </div>
+        <div class="login-switch">
+          <span id="loginSwitchText">没有账号？</span>
+          <button type="button" class="btn-link" id="loginSwitchBtn">注册新账号</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ── Auth: change-password overlay ───────────────────── -->
+  <div class="login-overlay" id="changePasswordOverlay">
+    <div class="login-card">
+      <h2>修改密码</h2>
+      <p class="login-sub">首次登录需要设置新密码</p>
+      <div class="login-error" id="changePasswordError"></div>
+      <form id="changePasswordForm">
+        <div class="field">
+          <label for="cpCurrentPassword">当前密码</label>
+          <input id="cpCurrentPassword" type="password" autocomplete="current-password" placeholder="请输入当前密码" required />
+        </div>
+        <div class="field">
+          <label for="cpNewPassword">新密码</label>
+          <input id="cpNewPassword" type="password" autocomplete="new-password" placeholder="至少 8 位字符" minlength="8" required />
+        </div>
+        <div class="field">
+          <label for="cpConfirmPassword">确认新密码</label>
+          <input id="cpConfirmPassword" type="password" autocomplete="new-password" placeholder="请再次输入新密码" minlength="8" required />
+        </div>
+        <div class="login-actions">
+          <button type="submit" class="btn primary" id="changePasswordSubmitBtn">保存新密码</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script type="module" src="/src/legacy-entry.ts"></script>
+</body>
+</html>

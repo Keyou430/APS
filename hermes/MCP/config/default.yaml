@@ -1,0 +1,86 @@
+# Hermes MCP Server — Default Configuration
+# Override by setting HERMES_MCP_* environment variables or providing --config
+
+server:
+  name: "hermes-mcp"
+  version: "0.1.0"
+  transport: "stdio"           # stdio | streamable-http | sse
+  host: "127.0.0.1"
+  port: 9200
+  log_level: "INFO"
+
+hermes:
+  mode: "auto"                 # auto | sdk | cli
+  sdk_path: "C:\\Users\\86135\\AppData\\Roaming\\uv\\tools\\hermes-agent\\Lib\\site-packages"
+  exe_path: "D:\\Replica1.0\\hermes\\hermes.exe"
+  timeout: 30.0
+
+retrieval:
+  base_url: "http://localhost:8001"
+  timeout: 60.0
+  experience_enabled: true
+  database_enabled: true
+  knowledge_enabled: true
+  default_top_k: 3
+  similarity_threshold: 0.3
+
+sandbox:
+  enabled: true
+  allowed_commands:
+    - python
+    - node
+    - echo
+    - cat
+    - ls
+    - dir
+    - head
+    - tail
+    - wc
+    - grep
+    - sort
+    - uniq
+    - cut
+    - tr
+  allowed_directories:
+    - "./data"
+    - "/tmp/hermes"
+  default_timeout: 30.0
+  max_output_bytes: 1048576
+
+file_ops:
+  max_file_size: 10485760
+  allowed_directories:
+    - "."
+    - "./data"
+    - "/tmp/hermes"
+  allowed_extensions:
+    - ".txt"
+    - ".md"
+    - ".json"
+    - ".yaml"
+    - ".yml"
+    - ".csv"
+    - ".py"
+    - ".js"
+    - ".ts"
+    - ".html"
+    - ".css"
+    - ".xml"
+    - ".log"
+    - ".env"
+    - ".cfg"
+    - ".ini"
+    - ".toml"
+
+feishu_readonly:
+  enabled: true
+  cli_path: "lark-cli"
+  timeout: 30.0
+  max_output_bytes: 1048576
+
+lark_cli_full:
+  enabled: true
+  cli_path: "lark-cli"
+  timeout: 30.0
+  max_output_bytes: 1048576
+  approval_ttl: 300.0

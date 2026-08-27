@@ -1,0 +1,33 @@
+{
+  "upstream": {
+    "repository": "https://github.com/NousResearch/hermes-agent",
+    "tag": "v2026.7.7.2",
+    "commit": "9de9c25f620ff7f1ce0fd5457d596052d5159596"
+  },
+  "artifact_digests": {
+    "source_commit": "9de9c25f620ff7f1ce0fd5457d596052d5159596",
+    "container_image": "sha256:006c49113932971f825f2cfbccf8af3baecb048563412a2597bb2147f0ee87d2",
+    "python_package": null,
+    "note": "Private validation image built from the pinned tag; reproduce or publish a production image digest before production release."
+  },
+  "api_server": {
+    "enabled_environment_variable": "API_SERVER_ENABLED",
+    "host_environment_variable": "API_SERVER_HOST",
+    "port_environment_variable": "API_SERVER_PORT",
+    "key_environment_variable": "API_SERVER_KEY",
+    "private_port": 8642,
+    "health_paths": [
+      "/health",
+      "/health/detailed"
+    ],
+    "capability_path": "/v1/capabilities"
+  },
+  "platform_policy": {
+    "provider_credentials": "runtime-only; never commit credentials",
+    "tool_execution": "API server enables only terminal and file through the dedicated rootless per-session runner; code_execution and unrelated toolsets remain disabled",
+    "document_upload": "platform knowledge ingestion only; do not send non-image files to Hermes",
+    "tenant_scope": "platform-owned user and future organization context"
+  },
+  "recorded_on": "2026-07-24",
+  "validated_on": "2026-07-27"
+}

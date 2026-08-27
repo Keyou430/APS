@@ -1,0 +1,8 @@
+_config_version: 33
+
+model:
+  provider: xiaomi
+  default: mimo-v2.5
+
+platform_toolsets:
+  api_server: []

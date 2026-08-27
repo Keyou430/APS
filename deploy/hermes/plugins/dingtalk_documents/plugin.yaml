@@ -1,0 +1,14 @@
+name: dingtalk-documents
+version: 1.0.0
+description: "Read-only DingTalk document search and content tools for the linked demo user."
+author: Xingjinian AI Work Platform
+kind: standalone
+provides_tools:
+  - dingtalk_check_document_permissions
+  - dingtalk_search_documents
+  - dingtalk_read_document
+required_env:
+  - DINGTALK_DOC_CLIENT_ID
+  - DINGTALK_DOC_CLIENT_SECRET
+  - DINGTALK_DOC_OPERATOR_ID
+  - DINGTALK_ALLOWED_RESOURCE_HOSTS

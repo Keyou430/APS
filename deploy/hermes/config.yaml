@@ -1,0 +1,66 @@
+# Keep provider selection in the private Hermes deployment profile. The API key is injected
+# through the ignored deploy/.env file and never belongs in this repository.
+_config_version: 33
+
+model:
+  provider: deepseek
+  default: deepseek-v4-flash
+
+plugins:
+  enabled:
+    - dingtalk-documents
+
+group_sessions_per_user: true
+
+display:
+  platforms:
+    dingtalk:
+      show_reasoning: false
+      streaming: true
+      tool_progress: all
+      interim_assistant_messages: true
+
+platforms:
+  dingtalk:
+    require_mention: true
+
+terminal:
+  backend: docker
+  cwd: /workspace
+  docker_image: python:3.12-slim@sha256:57cd7c3a7a273101a6485ba99423ee568157882804b1124b4dd04266317710de
+  docker_forward_env: []
+  container_cpu: 0.5
+  container_memory: 256
+  container_disk: 0
+  container_persistent: false
+  docker_volumes: []
+  docker_mount_cwd_to_workspace: false
+  docker_network: false
+  docker_run_as_host_user: false
+  docker_persist_across_processes: false
+  docker_orphan_reaper: true
+  docker_extra_args:
+    - --user
+    - 10000:10000
+    - --read-only
+    - --tmpfs
+    - /workspace:rw,exec,nosuid,nodev,size=64m,uid=10000,gid=10000,mode=0700
+
+# Release policy: expose only the three toolsets admitted by the dedicated runner gates.
+# code_execution and every unrelated toolset remain disabled.
+platform_toolsets:
+  api_server:
+    - terminal
+    - file
+    - skills
+    - dingtalk_documents
+    - web
+  dingtalk:
+    - skills
+    - file
+    - terminal
+    - dingtalk_documents
+
+# Provider selection is intentionally credential-driven and fail-closed. Set an explicit
+# backend only in the ignored deploy/.env/runtime override after external approval.
+web: {}

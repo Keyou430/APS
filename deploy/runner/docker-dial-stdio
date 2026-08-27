@@ -1,0 +1,14 @@
+#!/usr/bin/env sh
+set -eu
+
+case ${SSH_ORIGINAL_COMMAND:-} in
+  "docker system dial-stdio") ;;
+  *)
+    echo "restricted runner command" >&2
+    exit 126
+    ;;
+esac
+
+RUNNER_UID=$(id -u)
+export DOCKER_HOST="unix:///run/user/$RUNNER_UID/docker.sock"
+exec /usr/bin/docker system dial-stdio
