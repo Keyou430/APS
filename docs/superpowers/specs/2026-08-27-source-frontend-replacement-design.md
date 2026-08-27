@@ -1,81 +1,65 @@
-# Source Frontend Replacement Design
+# 源前端完整替换设计说明
 
-## Goal
+## 目标
 
-Replace `D:\Replica1.0\web-platform` with the frontend from
-`D:\星纪云v1.0\agent-platform-system\web-platform`, preserving that source
-frontend's layout, styles, navigation, submenu-to-card behavior, tabs, and
-responsive behavior while connecting it to the current Replica backend.
+使用 `D:\星纪云v1.0\agent-platform-system\web-platform` 完整替换
+`D:\Replica1.0\web-platform`，保持源前端的布局、样式、导航、子菜单定位
+卡片、页签和响应式行为，并与 Replica 当前后端对接。
 
-## Source Of Truth
+## 界面与交互真源
 
-The source project is authoritative for all user-visible frontend behavior.
-This includes `index.html`, `styles.css`, the legacy application shell,
-React pages, icons, navigation structure, submenu state, compound tabs,
-card scrolling and highlighting, and custom website navigation.
+源项目是所有前端可见行为的唯一真源，包括 `index.html`、`styles.css`、
+旧版应用外壳、React 页面、图标、导航结构、子菜单状态、复合页签、卡片
+滚动与高亮，以及自定义网站导航。
 
-The current Replica frontend is not a visual or interaction source. Its code
-may be retained only where it is required to satisfy a current backend API
-contract and does not alter the source frontend's presentation or navigation.
+Replica 当前前端不再作为视觉或交互参考。只有在满足当前后端 API 契约确有
+必要，且不会改变源前端界面和导航行为时，才保留其中的代码。
 
-## Replacement Boundary
+## 替换范围
 
-Replace the complete `web-platform` source tree, excluding generated and local
-dependency directories such as `node_modules`, `dist`, `test-results`, and
-locally generated screenshot artifacts. Files that exist only in the current
-frontend implementation are removed when they are not part of a required API
-adapter.
+替换完整的 `web-platform` 源代码树，但不复制 `node_modules`、`dist`、
+`test-results` 和本地生成的截图等依赖或构建产物。当前前端中独有的文件，
+若不属于必要的 API 适配层，则从目标前端删除。
 
-Backend code, uploads, migrations, backend tests, deployment files, and other
-repository directories are outside this replacement boundary and remain
-unchanged.
+后端代码、上传文件、数据库迁移、后端测试、部署文件及仓库中的其他目录均不在
+替换范围内，不会因前端复制而被覆盖。
 
-## Backend Alignment
+## 后端对齐
 
-After copying the source frontend, align it with the current FastAPI backend at
-the frontend contract boundary:
+复制源前端后，在前端契约边界与当前 FastAPI 后端对齐：
 
-- Keep the `/api` base path and Vite development proxy to port 8000.
-- Preserve the current single-user authentication behavior, including
-  anonymous `/api/auth/me` use and avoiding refresh loops when no bearer token
-  exists.
-- Preserve current DTO and request changes for users, chat knowledge scope,
-  dashboard decisions, pipeline approvals, enterprise announcements, and
-  numeric knowledge citation identifiers.
-- Prefer changes in `src/api`, authentication runtime, and narrow event bridges.
-  Do not redesign source pages to accommodate backend differences.
-- Keep source UI modules whose backend contracts do not exist. Their existing
-  explicit unsupported/error behavior remains; no mock success response or new
-  backend subsystem is introduced by this frontend replacement.
+- 保持 `/api` 基础路径以及 Vite 开发服务器到 8000 端口的代理。
+- 保留当前单用户认证行为，包括匿名访问 `/api/auth/me`，以及没有 Bearer
+  Token 时不触发刷新循环。
+- 保留用户、会话知识范围、驾驶舱决策、Pipeline 审批、企业公告和数字型知识
+  引用编号所需的 DTO 与请求变更。
+- 优先只修改 `src/api`、认证运行时和必要的窄范围事件桥接，不为适配后端而
+  重新设计源页面。
+- 对于后端尚无接口的源 UI 模块，保留源项目已有的“不支持/错误”行为；本次
+  替换不伪造成功响应，也不额外开发新的后端子系统。
 
-## Navigation And Interaction
+## 导航与交互
 
-The legacy shell behavior is restored as implemented by the source project.
-In particular, dashboard and portal submenu clicks must open the parent view,
-create or activate the corresponding compound tab, scroll to the selected
-card, flash-highlight it, and synchronize sidebar selection. AI services,
-account management, work platform, custom websites, and dynamic subsystem
-navigation keep their source behavior.
+恢复源项目实现的旧版应用外壳行为。驾驶舱和企业门户的子菜单点击后，必须打开
+父视图、创建或激活对应的复合页签、滚动到目标卡片、闪烁高亮卡片并同步侧栏
+选中状态。AI 服务、账号管理、工作平台、自定义网站和动态子系统导航均保持源
+项目行为。
 
-## Verification
+## 验证方式
 
-Verification covers:
+1. 除已说明的后端适配文件和排除的生成文件外，源前端与目标前端文件保持一致。
+2. Node 契约测试和 Vitest 测试通过。
+3. TypeScript 检查和 Vite 生产构建通过。
+4. 与认证、驾驶舱决策、Pipeline 审批、用户、会话和知识库相关的后端契约
+   测试通过。
+5. 使用浏览器检查桌面端和移动端渲染、主导航、子菜单定位卡片及高亮、页签创建，
+   并确认界面无重叠、无空白页面。
 
-1. Source and destination frontend manifests match apart from documented
-   backend adapters and excluded generated files.
-2. Node contract tests and Vitest tests pass.
-3. TypeScript and the Vite production build pass.
-4. Backend contract tests relevant to authentication, dashboard decisions,
-   pipeline approval, users, chat, and knowledge pass.
-5. Browser checks confirm desktop and mobile rendering, primary navigation,
-   submenu-to-card scrolling/highlighting, tab creation, and absence of
-   overlapping or blank UI.
+## 验收标准
 
-## Acceptance Criteria
-
-- The running Replica frontend visually and behaviorally follows the source
-  frontend rather than the current Replica redesign.
-- Source submenu-to-card navigation and tab behavior work.
-- Supported screens load current backend data without mock fallbacks.
-- The app builds successfully and critical frontend/backend contract tests pass.
-- No files outside the frontend boundary are overwritten as part of the copy.
+- Replica 运行后的前端在视觉和行为上以源前端为准，不再沿用当前 Replica
+  前端改版。
+- 源项目的子菜单定位卡片和页签行为可正常使用。
+- 已有后端支持的页面加载当前后端真实数据，不使用 mock 回退。
+- 应用构建成功，关键前后端契约测试通过。
+- 替换过程不覆盖前端目录以外的文件。
