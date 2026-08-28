@@ -1,0 +1,27 @@
+[Unit]
+Description=Hermes single-host rootless runner control endpoint
+After=network-online.target ssh.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=hermes-runner
+Group=hermes-runner
+Environment=HOME=/home/hermes-runner
+EnvironmentFile=/etc/hermes-runner-control.env
+ExecStart=/usr/bin/env DOCKER_HOST=${RUNNER_DOCKER_HOST} /usr/bin/python3 /home/hermes-runner/runner-control/hermes_runner_control.py --bind ${RUNNER_CONTROL_BIND} --port ${RUNNER_CONTROL_PORT} --certificate /home/hermes-runner/runner-control/tls/server.crt --private-key /home/hermes-runner/runner-control/tls/server.key --client-ca /home/hermes-runner/runner-control/tls/ca.crt
+Restart=on-failure
+RestartSec=3
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

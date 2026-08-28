@@ -11,7 +11,18 @@ temporary_attestation=$(mktemp "${attestation_path}.tmp.XXXXXX")
 verifier_output=$(mktemp "${attestation_path}.verify.XXXXXX")
 trap 'rm -f "$temporary_attestation" "$verifier_output"' EXIT
 
-compose="docker compose --env-file .env -f compose.yaml -f compose.hermes.yaml"
+compose_files="-f compose.yaml -f compose.hermes.yaml"
+if [ -n "${COMPOSE_OVERRIDE_FILE:-}" ]; then
+  case "$COMPOSE_OVERRIDE_FILE" in
+    *[!A-Za-z0-9._/-]*)
+      echo "sandbox-attestation=failed check=compose-override-name" >&2
+      exit 1
+      ;;
+  esac
+  test -f "$COMPOSE_OVERRIDE_FILE"
+  compose_files="$compose_files -f $COMPOSE_OVERRIDE_FILE"
+fi
+compose="docker compose --env-file .env $compose_files"
 if ! sh -c "$compose exec -T -u 10000:10000 hermes sh -s < scripts/verify-hermes-docker-backend.sh" \
   > "$verifier_output"; then
   echo "sandbox-attestation=failed check=backend-verifier" >&2

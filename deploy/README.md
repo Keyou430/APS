@@ -82,6 +82,105 @@ cp .env.example .env
 docker compose --env-file .env -f compose.yaml up -d --build --wait
 ```
 
+## Ubuntu Single-Host Internal Test Deployment
+
+This profile keeps the full platform, RAG, both Hermes gateways, all workers,
+native pipeline scheduling, and the isolated terminal/file runner on one Ubuntu
+24.04 host. The standard Docker daemon runs the platform while a dedicated
+`hermes-runner` user owns a second rootless Docker daemon for sandbox tasks.
+
+Clone the full-chain branch and verify that it contains the reviewed feature
+baseline:
+
+```bash
+git clone --branch codex/hermes-platform-full-chain --single-branch \
+  https://github.com/Keyou430/APS.git
+cd APS
+git merge-base --is-ancestor 4c665069236324cfeed1af6479e840cc4458310c HEAD
+```
+
+Create the private environment file, set mode `0600`, and replace every empty
+or placeholder secret:
+
+```bash
+cd deploy
+cp .env.example .env
+chmod 600 .env
+editor .env
+```
+
+The single-host gate requires `APP_BIND=0.0.0.0`,
+`RAG_EMBEDDING_ENABLED=true`, provider credentials, independent random values
+for `JWT_SECRET_KEY`, `RAG_QUERY_AUDIT_HMAC_KEY`, `HERMES_API_SERVER_KEY`, and
+`HERMES_CRON_INTERNAL_KEY`, plus the configured Feishu application values.
+
+Initialize the rootless runner without disabling the host's standard Docker,
+then start the stack:
+
+```bash
+sudo sh scripts/bootstrap-single-host.sh
+# Reconnect the SSH session so the operator receives Docker group membership.
+sh scripts/up-single-host.sh
+```
+
+The startup sequence runs the host/resource/secret gate, renders a container-only
+Hermes config under ignored `.runtime/`, builds the pinned Hermes source, creates
+the sandbox attestation, starts every service, and runs infrastructure acceptance.
+Complete the personal Feishu authorization after the first successful start:
+
+```bash
+sh scripts/rebind-feishu.sh user
+```
+
+The command uses lark-cli device authorization, validates the resulting token and
+a read-only group-chat request, and backs up the old `lark_cli_data` volume first.
+Changing the application robot is separate: edit `deploy/.env`, update the app's
+permissions and WebSocket configuration in Feishu Open Platform, then run:
+
+```bash
+sh scripts/rebind-feishu.sh bot
+```
+
+Each successful deployment records an ignored, mode-`0600` last-known-good
+environment snapshot. The robot rebind verifies both Feishu application
+credential pairs before restarting services. A failed robot rebind restores the
+snapshot and recreates the previous services automatically. A failed personal
+authorization check restores the prior `lark_cli_data` state.
+
+To restore an earlier personal authorization backup:
+
+```bash
+sh scripts/rebind-feishu.sh restore-user backups/lark-cli-before-<timestamp>.tar.gz
+```
+
+Cloud security-group rules for this internal test deployment are deliberately
+small:
+
+| Port | Source | Purpose |
+|---|---|---|
+| `22/tcp` | approved administrator IPs only | SSH administration |
+| `${APP_PORT:-8080}/tcp` | approved tester IPs only | HTTP test entry |
+
+Do not open PostgreSQL, Hermes ports `8642/8643`, RAG port `8091`, cron bridge
+port `8765`, or runner control port `9443`. The runner control service binds to
+the host Docker bridge address and requires mTLS; rootless Docker has no TCP
+listener.
+
+Routine checks:
+
+```bash
+sh scripts/verify-single-host-deployment.sh
+docker compose --profile rag --env-file .env \
+  -f compose.yaml -f compose.hermes.yaml -f compose.single-host.yaml ps
+docker compose --profile rag --env-file .env \
+  -f compose.yaml -f compose.hermes.yaml -f compose.single-host.yaml logs --tail 200
+```
+
+The preflight refuses an install or upgrade below 15 GiB free disk. Container
+and runner logs rotate at 10 MiB per file. Never use `down --volumes` on this
+host; named volumes contain PostgreSQL, uploads, Hermes state, and personal
+Feishu authorization.
+
 The real Hermes service is started with the additional `-f compose.hermes.yaml` override. The
 override pins the build context to commit `9de9c25f620ff7f1ce0fd5457d596052d5159596` from tag
 `v2026.7.7.2`, enables the authenticated API server on the Compose network, and checks its private

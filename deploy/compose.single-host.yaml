@@ -1,0 +1,129 @@
+x-bounded-logging: &bounded-logging
+  driver: local
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+  db:
+    mem_limit: 1536m
+    cpus: 1.0
+    logging: *bounded-logging
+
+  web:
+    mem_limit: 256m
+    cpus: 0.5
+    logging: *bounded-logging
+
+  rag-worker:
+    mem_limit: 1536m
+    cpus: 2.0
+    logging: *bounded-logging
+
+  hermes:
+    environment:
+      DOCKER_HOST: ssh://hermes-runner@${RUNNER_HOST:-host.docker.internal}
+      HERMES_CRON_INTERNAL_KEY: ${HERMES_CRON_INTERNAL_KEY:?Set HERMES_CRON_INTERNAL_KEY in deploy/.env}
+    extra_hosts:
+      - host.docker.internal:host-gateway
+    volumes:
+      - ./.runtime/single-host/hermes-agent-config.yaml:/opt/data/config.yaml:ro
+    mem_limit: 2048m
+    cpus: 2.0
+    logging: *bounded-logging
+
+  hermes-knowledge:
+    mem_limit: 1536m
+    cpus: 1.5
+    logging: *bounded-logging
+
+  hermes-cron-init:
+    image: ${HERMES_IMAGE:-hermes-agent:v2026.7.7.2}
+    user: "0:0"
+    entrypoint: ["/bin/sh", "-ec"]
+    command: ["chown -R 10001:10001 /scripts && chmod 0755 /scripts"]
+    volumes:
+      - hermes_cron_scripts:/scripts
+    restart: "no"
+    networks:
+      - platform
+
+  hermes-cron-bridge:
+    image: ${HERMES_IMAGE:-hermes-agent:v2026.7.7.2}
+    user: "10000:10000"
+    entrypoint: ["python", "/opt/platform/hermes_cron_command_server.py"]
+    restart: unless-stopped
+    environment:
+      HERMES_HOME: /opt/data
+      HERMES_CRON_INTERNAL_KEY: ${HERMES_CRON_INTERNAL_KEY:?Set HERMES_CRON_INTERNAL_KEY in deploy/.env}
+      HERMES_CRON_COMMAND_HOST: 0.0.0.0
+      HERMES_CRON_COMMAND_PORT: "8765"
+    volumes:
+      - hermes_data:/opt/data
+      - hermes_cron_scripts:/opt/data/scripts
+      - ./.runtime/single-host/hermes-agent-config.yaml:/opt/data/config.yaml:ro
+      - ./scripts/hermes-cron-command-server.py:/opt/platform/hermes_cron_command_server.py:ro
+    expose:
+      - "8765"
+    depends_on:
+      hermes:
+        condition: service_healthy
+      hermes-cron-init:
+        condition: service_completed_successfully
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - import urllib.request; urllib.request.urlopen('http://127.0.0.1:8765/health')
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+    mem_limit: 512m
+    cpus: 0.5
+    logging: *bounded-logging
+    networks:
+      - platform
+
+  api:
+    environment:
+      HERMES_CLI_EXE_PATH: /run/hermes-cron/hermes
+      HERMES_CRON_BRIDGE_URL: http://hermes-cron-bridge:8765
+      HERMES_CRON_INTERNAL_KEY: ${HERMES_CRON_INTERNAL_KEY:?Set HERMES_CRON_INTERNAL_KEY in deploy/.env}
+      PLATFORM_INTERNAL_API_URL: http://api:8000
+      SANDBOX_MAX_ACTIVE_RUNS_GLOBAL: "4"
+      SANDBOX_MAX_ACTIVE_RUNS_PER_ORGANIZATION: "2"
+      SANDBOX_MAX_ACTIVE_RUNS_PER_USER: "1"
+      SANDBOX_RUNNER_URL: https://${RUNNER_HOST:-host.docker.internal}:${RUNNER_CONTROL_PORT:-9443}
+    extra_hosts:
+      - host.docker.internal:host-gateway
+    volumes:
+      - ./scripts/hermes-cron-client.py:/run/hermes-cron/hermes:ro
+      - hermes_cron_scripts:/run/hermes-cron/scripts
+    depends_on:
+      hermes-cron-bridge:
+        condition: service_healthy
+      hermes-cron-init:
+        condition: service_completed_successfully
+    mem_limit: 1536m
+    cpus: 2.0
+    logging: *bounded-logging
+
+  pipeline-worker:
+    mem_limit: 512m
+    cpus: 1.0
+    logging: *bounded-logging
+
+  pipeline-approval-worker:
+    mem_limit: 384m
+    cpus: 0.5
+    logging: *bounded-logging
+
+  delivery-worker:
+    mem_limit: 384m
+    cpus: 0.5
+    logging: *bounded-logging
+
+volumes:
+  hermes_cron_scripts:

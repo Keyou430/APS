@@ -6,7 +6,7 @@
 
 目标服务器配置为 8 核 CPU、15 GiB 内存、约 28 GiB 可用系统盘和 1.9 GiB Swap。测试人员通过公网 IP 访问，由云安全组限制为明确的测试 IP 白名单。内部测试阶段不配置域名和 HTTPS。
 
-部署基线为提交 `4c665069236324cfeed1af6479e840cc4458310c`。部署脚本必须在启动前校验分支和提交；不匹配时立即停止。
+功能基线为提交 `4c665069236324cfeed1af6479e840cc4458310c`。部署脚本必须在启动前校验目标分支、确认该提交是当前发布提交的祖先，并拒绝带有已跟踪改动的工作区。
 
 ## 2. 范围
 
@@ -68,6 +68,7 @@ deploy/compose.yaml
 - 将 `SANDBOX_RUNNER_URL` 改为单机 mTLS 控制端点。
 - 为需要访问宿主机的容器增加稳定的 host-gateway 别名。
 - 挂载部署时生成的 Hermes 运行配置。
+- 增加只在 Compose 内网监听的 Hermes cron bridge。它在共享 Hermes 状态上执行经过严格白名单校验的 `cron create/remove`，并为现有 API 提供 CLI 兼容入口，因此无需修改后端功能代码或把 Docker socket 挂入 API。
 - 将 sandbox 并发限制为全局 4、每组织 2、每用户 1。
 - 设置与 15 GiB 内存相符的容器资源和日志轮转上限。
 
@@ -133,8 +134,8 @@ API 容器和 Hermes MCP 运行配置必须读取同一内部密钥。生成步�
 
 - sandbox 并发上限：全局 4、每组织 2、每用户 1。
 - runner 单任务继续使用既有 CPU、内存和 tmpfs 限制。
-- 主服务使用 Compose 硬上限：PostgreSQL 1.5 GiB/1 CPU、API 1.5 GiB/2 CPU、RAG 1.5 GiB/2 CPU、Hermes Agent 2 GiB/2 CPU、Hermes Knowledge 1.5 GiB/1.5 CPU、Web 256 MiB/0.5 CPU、Pipeline worker 512 MiB/1 CPU、Approval worker 384 MiB/0.5 CPU、Delivery worker 384 MiB/0.5 CPU。
-- 全部主服务内存上限合计约 9.5 GiB；最多四个既有 256 MiB sandbox 合计 1 GiB，为系统、双 Docker daemon、构建峰值和文件缓存保留约 4.5 GiB。
+- 主服务使用 Compose 硬上限：PostgreSQL 1.5 GiB/1 CPU、API 1.5 GiB/2 CPU、RAG 1.5 GiB/2 CPU、Hermes Agent 2 GiB/2 CPU、Hermes Knowledge 1.5 GiB/1.5 CPU、Hermes cron bridge 512 MiB/0.5 CPU、Web 256 MiB/0.5 CPU、Pipeline worker 512 MiB/1 CPU、Approval worker 384 MiB/0.5 CPU、Delivery worker 384 MiB/0.5 CPU。
+- 全部主服务内存上限合计约 10 GiB；最多四个既有 256 MiB sandbox 合计 1 GiB，为系统、双 Docker daemon、构建峰值和文件缓存保留约 4 GiB。
 - Docker 和 runner 日志使用轮转，单文件上限 10 MB。
 - 可用磁盘低于 15 GiB 时，预检拒绝首次构建或升级。
 - 运维命令只能清理已停止的临时任务容器和明确标记的旧构建缓存，禁止自动清理命名卷。
@@ -151,7 +152,7 @@ API 容器和 Hermes MCP 运行配置必须读取同一内部密钥。生成步�
 - 如新应用承担平台读取或通知，再同步更新 `PLATFORM_FEISHU_APP_ID`、`PLATFORM_FEISHU_APP_SECRET`
 - 平台读取授权列表和配置状态标志
 
-`rebind-feishu.sh bot` 校验变量后定向重新创建 `hermes`、`api` 和 `delivery-worker`。它不得重新创建数据库或删除任何卷。飞书开放平台仍需为新应用配置相同权限、启用机器人/WebSocket，并授予目标群、文档、Wiki 和 Base 的访问权。
+`rebind-feishu.sh bot` 校验变量后定向重新创建 `hermes`、`api` 和 `delivery-worker`。每次成功部署保存权限为 `0600` 的 ignored last-known-good 环境快照；换绑失败时自动恢复该快照并重新创建原服务。脚本不得重新创建数据库或删除任何卷。飞书开放平台仍需为新应用配置相同权限、启用机器人/WebSocket，并授予目标群、文档、Wiki 和 Base 的访问权。
 
 ### 10.2 更换个人用户授权
 

@@ -2,5 +2,6 @@
 .env.*
 !.env.example
 .runtime/
+backups/
 *.secret
 

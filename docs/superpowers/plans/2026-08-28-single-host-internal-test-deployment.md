@@ -19,6 +19,7 @@
 - API runner control URL 使用 mTLS `https://host.docker.internal:9443`。
 - Agent 挂载生成的 `deploy/.runtime/single-host/hermes-agent-config.yaml`。
 - API 注入 `HERMES_CRON_INTERNAL_KEY` 与容器内平台 URL。
+- 增加只在 Compose 内网提供 Hermes cron CLI 兼容调用的 sidecar，使现有后端无需内置 Hermes 可执行文件。
 - 将 sandbox 并发限制为 4/2/1。
 - 为主服务配置资源上限和 `local` 日志轮转。
 
