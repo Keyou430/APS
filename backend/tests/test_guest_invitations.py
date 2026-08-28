@@ -101,8 +101,24 @@ async def test_production_guest_flag_requires_smtp_delivery_adapter() -> None:
 async def test_production_like_settings_reject_known_default_secrets() -> None:
     with pytest.raises(ValidationError):
         Settings(app_env="container", jwt_secret_key="development-only-change-me")
+
+    settings = Settings(
+        app_env="container",
+        single_user_mode=True,
+        admin_password="admin123",
+        jwt_secret_key="production-only-jwt-secret-key",
+        rag_query_audit_hmac_key="production-only-audit-hmac-key",
+    )
+    assert settings.admin_password == "admin123"
+
     with pytest.raises(ValidationError):
-        Settings(app_env="container", admin_password="admin123")
+        Settings(
+            app_env="container",
+            single_user_mode=False,
+            admin_password="admin123",
+            jwt_secret_key="production-only-jwt-secret-key",
+            rag_query_audit_hmac_key="production-only-audit-hmac-key",
+        )
 
 
 async def test_smtp_create_delivers_without_returning_plaintext_token(

@@ -130,6 +130,7 @@ async def schedule_due_pipeline_tasks(
                     PipelineTask.status == "ready",
                     PipelineTask.deleted_at.is_(None),
                     PipelineTask.schedule.is_not(None),
+                    PipelineTask.hermes_cron_job_id.is_(None),
                     or_(
                         PipelineTask.next_run_at.is_(None),
                         PipelineTask.next_run_at <= now,

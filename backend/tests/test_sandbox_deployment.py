@@ -31,7 +31,15 @@ MINIMUM_PLATFORM_TOOLSETS = (
     "    - terminal\n"
     "    - file"
 )
-PRIMARY_API_TOOLSETS = ["terminal", "file", "skills", "dingtalk_documents", "web"]
+PRIMARY_API_TOOLSETS = [
+    "terminal",
+    "file",
+    "skills",
+    "dingtalk_documents",
+    "web",
+    "hermes-lark-cli",
+    "hermes-industry-news",
+]
 
 
 def configured_api_toolsets(path: Path) -> list[str]:

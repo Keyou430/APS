@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.dependencies import OrganizationContext, require_permission
 from app.auth.security import hash_password
+from app.config import get_settings
 from app.database import get_db
 from app.models import OrganizationMembership, Role, User
 from app.schemas.auth import UserResponse
@@ -150,6 +151,11 @@ async def list_users(
 async def create_user(
     payload: UserCreate, db: DbSession, admin: OrgAdminContext
 ) -> UserResponse:
+    if get_settings().single_user_mode:
+        raise HTTPException(
+            status_code=409,
+            detail="Single-user mode only allows the admin account",
+        )
     role = await db.scalar(select(Role).where(Role.name == payload.role))
     if role is None:
         raise HTTPException(status_code=400, detail="Unknown role")

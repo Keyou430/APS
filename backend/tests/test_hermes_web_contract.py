@@ -29,6 +29,8 @@ def test_primary_web_toolset_is_exposed_and_knowledge_stays_fail_closed():
         "skills",
         "dingtalk_documents",
         "web",
+        "hermes-lark-cli",
+        "hermes-industry-news",
     ]
     assert knowledge["platform_toolsets"]["api_server"] == ["dingtalk_documents"]
     assert config["terminal"]["docker_network"] is False
@@ -43,23 +45,32 @@ def test_formal_primary_web_and_feishu_are_enabled_while_knowledge_is_closed():
             encoding="utf-8"
         )
     )
-    assert config["platform_toolsets"]["api_server"] == ["web"]
+    assert config["platform_toolsets"]["api_server"] == [
+        "web",
+        "hermes-lark-cli",
+        "hermes-industry-news",
+        "hermes-platform-pipeline",
+    ]
     assert config["platform_toolsets"]["feishu"] == ["web"]
     assert knowledge["platform_toolsets"]["api_server"] == []
 
 
 def test_web_provider_environment_is_injected_only_into_primary_hermes():
     compose = (ROOT / "deploy/compose.hermes.yaml").read_text(encoding="utf-8")
-    hermes_block, knowledge_block = compose.split("  hermes-knowledge:", maxsplit=1)
+    hermes_block, remainder = compose.split("  hermes-knowledge:", maxsplit=1)
+    knowledge_block = remainder.split("  api:", maxsplit=1)[0]
     for key in load_verifier().PROVIDER_KEYS:
         assert f"{key}: ${{{key}:-}}" in hermes_block
         assert key not in knowledge_block
 
 
 def test_feishu_channel_environment_is_injected_only_into_primary_gateway():
-    compose = (ROOT / "deploy/compose.hermes.yaml").read_text(encoding="utf-8")
+    compose = yaml.safe_load(
+        (ROOT / "deploy/compose.hermes.yaml").read_text(encoding="utf-8")
+    )
     env_example = (ROOT / "deploy/.env.example").read_text(encoding="utf-8")
-    hermes_block, knowledge_block = compose.split("  hermes-knowledge:", maxsplit=1)
+    hermes_environment = compose["services"]["hermes"]["environment"]
+    knowledge_environment = compose["services"]["hermes-knowledge"]["environment"]
     expected = {
         "FEISHU_APP_ID": "${FEISHU_APP_ID:-}",
         "FEISHU_APP_SECRET": "${FEISHU_APP_SECRET:-}",
@@ -72,8 +83,8 @@ def test_feishu_channel_environment_is_injected_only_into_primary_gateway():
         "FEISHU_HOME_CHANNEL": "${FEISHU_HOME_CHANNEL:-}",
     }
     for key, value in expected.items():
-        assert f"{key}: {value}" in hermes_block
-        assert key not in knowledge_block
+        assert hermes_environment[key] == value
+        assert key not in knowledge_environment
         assert f"{key}=" in env_example
 
 
@@ -111,6 +122,13 @@ def test_platform_delivery_worker_uses_dedicated_feishu_credentials():
     assert "RAG_QUERY_AUDIT_HMAC_KEY" in delivery_block
     # Platform worker consumes its own outbox; it never talks to Hermes.
     assert "HERMES_API_URL" not in delivery_block
+
+
+def test_all_hermes_compose_variants_start_delivery_and_approval_workers():
+    for compose_name in ("compose.hermes.yaml", "compose.formal-hermes.yaml"):
+        compose = (ROOT / "deploy" / compose_name).read_text(encoding="utf-8")
+        assert 'command: ["python", "-m", "app.workers.delivery_worker"]' in compose
+        assert 'command: ["python", "-m", "app.workers.pipeline_approval_worker"]' in compose
 
 
 def test_formal_api_gets_only_the_feishu_reader_credentials_and_access_policy():
@@ -199,6 +217,78 @@ def test_hermes_image_bakes_locked_dingtalk_and_feishu_gateway_extras():
     )
     assert "--extra dingtalk --extra feishu" in prepare
     assert "grep -q -- '--extra dingtalk --extra feishu'" in prepare
+
+
+def test_hermes_images_bake_the_controlled_lark_cli_mcp_and_pinned_cli():
+    prepare = (ROOT / "deploy/scripts/prepare-hermes-source.sh").read_text(
+        encoding="utf-8"
+    )
+    evidence_dockerfile = (ROOT / "deploy/hermes-evidence/Dockerfile").read_text(
+        encoding="utf-8"
+    )
+    formal_compose = (ROOT / "deploy/compose.formal-hermes.yaml").read_text(
+        encoding="utf-8"
+    )
+
+    assert 'MCP_SOURCE_DIR="$DEPLOY_ROOT/../hermes/MCP"' in prepare
+    assert 'cp -R "$MCP_SOURCE_DIR" "$temporary_source/platform-hermes-mcp"' in prepare
+    assert "@larksuite/cli@1.0.90" in prepare
+    assert (
+        "/opt/hermes/.venv/bin/python3 --no-cache-dir "
+        "/opt/hermes/platform-hermes-mcp"
+    ) in prepare
+
+    assert (
+        "COPY --from=platform hermes/MCP /opt/platform-hermes-mcp"
+        in evidence_dockerfile
+    )
+    assert "@larksuite/cli@1.0.90" in evidence_dockerfile
+    assert (
+        "/opt/hermes/.venv/bin/python3 exa-py /opt/platform-hermes-mcp"
+        in evidence_dockerfile
+    )
+    assert "additional_contexts:" in formal_compose
+    assert "platform: .." in formal_compose
+
+
+def test_agent_gateways_register_lark_cli_but_knowledge_gateways_do_not():
+    for profile in ("hermes", "hermes-formal"):
+        agent_config = (ROOT / f"deploy/{profile}/config.yaml").read_text(
+            encoding="utf-8"
+        )
+        knowledge_config = (ROOT / f"deploy/{profile}/config.knowledge.yaml").read_text(
+            encoding="utf-8"
+        )
+
+        assert "hermes-lark-cli" in agent_config
+        assert "hermes_mcp.lark_cli_full" in agent_config
+        assert "hermes-lark-cli" not in knowledge_config
+
+
+def test_agent_gateways_register_curated_industry_news_but_knowledge_gateways_do_not():
+    for profile in ("hermes", "hermes-formal"):
+        agent_config = (ROOT / f"deploy/{profile}/config.yaml").read_text(
+            encoding="utf-8"
+        )
+        knowledge_config = (ROOT / f"deploy/{profile}/config.knowledge.yaml").read_text(
+            encoding="utf-8"
+        )
+
+        assert "hermes-industry-news" in agent_config
+        assert "hermes_mcp.industry_news" in agent_config
+        assert "hermes-industry-news" not in knowledge_config
+
+
+def test_compose_persists_lark_cli_auth_only_for_the_agent_gateway():
+    for compose_name in ("compose.hermes.yaml", "compose.formal-hermes.yaml"):
+        compose = (ROOT / "deploy" / compose_name).read_text(encoding="utf-8")
+        hermes_block, remainder = compose.split("  hermes-knowledge:", maxsplit=1)
+        knowledge_block = remainder.split("  api:", maxsplit=1)[0]
+
+        assert "HOME: /opt/data" in hermes_block
+        assert "lark_cli_data:/opt/data/.lark-cli" in hermes_block
+        assert "lark_cli_data:/opt/data/.lark-cli" not in knowledge_block
+        assert "lark_cli_data:" in compose.split("volumes:", maxsplit=1)[1]
 
 
 def test_web_tool_definition_contract_and_no_secret_values():

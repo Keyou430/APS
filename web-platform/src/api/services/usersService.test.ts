@@ -33,14 +33,14 @@ describe("users service", () => {
     request.mockResolvedValue({});
     const service = createUsersService(client);
 
-    await service.createUser({ username: "keyou", email: "k@example.com" });
+    await service.createUser({ username: "keyou", password: "change-me-123", email: "k@example.com" });
     await service.updateUser(5, { email: "new@example.com" });
-    await service.assignRoles(5, { roles: ["org_admin"] });
+    await service.assignRoles(5, { role: "admin" });
     await service.deleteUser(5);
 
     expect(request).toHaveBeenNthCalledWith(1, "/users", {
       method: "POST",
-      body: { username: "keyou", email: "k@example.com" },
+      body: { username: "keyou", password: "change-me-123", email: "k@example.com" },
     });
     expect(request).toHaveBeenNthCalledWith(2, "/users/5", {
       method: "PUT",
@@ -48,7 +48,7 @@ describe("users service", () => {
     });
     expect(request).toHaveBeenNthCalledWith(3, "/users/5/roles", {
       method: "PUT",
-      body: { roles: ["org_admin"] },
+      body: { role: "admin" },
     });
     expect(request).toHaveBeenNthCalledWith(4, "/users/5", {
       method: "DELETE",

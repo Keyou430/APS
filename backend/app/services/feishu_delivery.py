@@ -28,7 +28,10 @@ _TOKEN_EXPIRY_MARGIN_SECONDS = 120
 _EVENT_STATUS_TEXT = {
     "pipeline.decision.approved": "已批准",
     "pipeline.decision.rejected": "已拒绝",
+    "pipeline.decision.changes_requested": "已要求修改并重新生成",
     "pipeline.decision.pending": "待审批",
+    "pipeline.decision.reminder": "待审批提醒",
+    "pipeline.decision.escalation": "审批升级提醒",
 }
 
 

@@ -15,7 +15,10 @@ services:
       API_SERVER_PORT: "8642"
       API_SERVER_KEY: ${HERMES_API_SERVER_KEY:?Set HERMES_API_SERVER_KEY or run the Hermes-enabled startup script}
       HERMES_HOME: /opt/data
+      HOME: /opt/data
       HERMES_DISABLE_LAZY_INSTALLS: "1"
+      LARKSUITE_CLI_NO_UPDATE_NOTIFIER: "1"
+      LARKSUITE_CLI_NO_SKILLS_NOTIFIER: "1"
       HERMES_WRITE_SAFE_ROOT: /opt/data:/workspace
       DINGTALK_CLIENT_ID: ${DINGTALK_CLIENT_ID:-}
       DINGTALK_CLIENT_SECRET: ${DINGTALK_CLIENT_SECRET:-}
@@ -58,6 +61,7 @@ services:
       SEARXNG_URL: ${SEARXNG_URL:-}
     volumes:
       - hermes_data:/opt/data
+      - lark_cli_data:/opt/data/.lark-cli
       - ./hermes/config.yaml:/opt/data/config.yaml:ro
       - ./hermes/SOUL.md:/opt/data/SOUL.md:ro
       - ./hermes/skills/hr-weekly-report:/opt/data/skills/hr-weekly-report:ro
@@ -139,6 +143,44 @@ services:
     networks:
       - platform
 
+  pipeline-approval-worker:
+    build:
+      context: ../backend
+      dockerfile: ../deploy/backend.Dockerfile
+    restart: unless-stopped
+    command: ["python", "-m", "app.workers.pipeline_approval_worker"]
+    environment:
+      APP_ENV: container
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-agent_platform}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:?Set JWT_SECRET_KEY in deploy/.env}
+      JWT_ALGORITHM: HS256
+      PIPELINE_APPROVAL_WORKER_POLL_SECONDS: ${PIPELINE_APPROVAL_WORKER_POLL_SECONDS:-30}
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - platform
+
+  delivery-worker:
+    build:
+      context: ../backend
+      dockerfile: ../deploy/backend.Dockerfile
+    restart: unless-stopped
+    command: ["python", "-m", "app.workers.delivery_worker"]
+    environment:
+      APP_ENV: container
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-agent_platform}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:?Set JWT_SECRET_KEY in deploy/.env}
+      JWT_ALGORITHM: HS256
+      FEISHU_APP_ID: ${PLATFORM_FEISHU_APP_ID:-}
+      FEISHU_APP_SECRET: ${PLATFORM_FEISHU_APP_SECRET:-}
+      PLATFORM_PUBLIC_BASE_URL: ${PLATFORM_PUBLIC_BASE_URL:-}
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - platform
+
   hermes-knowledge:
     build:
       context: ./.runtime/hermes-source
@@ -184,3 +226,4 @@ services:
 volumes:
   hermes_data:
   hermes_knowledge_data:
+  lark_cli_data:

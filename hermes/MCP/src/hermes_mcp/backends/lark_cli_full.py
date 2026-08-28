@@ -51,6 +51,7 @@ _LOCAL_PATH_FLAGS = frozenset({"--file", "--output", "--output-dir"})
 _SCHEMA_IDENTIFIER = re.compile(
     r"(?P<domain>[a-z][a-z0-9_-]*)\.[a-z][a-z0-9_-]*(?:\.[a-z][a-z0-9_-]*)+\Z"
 )
+_HELP_SHORTCUT = re.compile(r"\+[a-z][a-z0-9_-]*\Z")
 _MAX_ARGUMENTS = 256
 _MAX_ARGUMENT_LENGTH = 32_768
 _MAX_ARGUMENT_BYTES = 262_144
@@ -206,7 +207,7 @@ class LarkCLIFullBackend:
         command = [self._command_path()]
         if topic is not None:
             normalized = self._validate_topic(topic)
-            command.append(normalized)
+            command.extend(normalized.split())
         else:
             normalized = "root"
         command.append("--help")
@@ -331,9 +332,16 @@ class LarkCLIFullBackend:
 
     @staticmethod
     def _validate_topic(topic: str) -> str:
-        if not isinstance(topic, str) or topic.strip() not in ALLOWED_BUSINESS_DOMAINS:
+        if not isinstance(topic, str):
             raise LarkCLIFullError("invalid_command", "帮助查询只允许已批准的飞书业务域。")
-        return topic.strip()
+        parts = topic.strip().split()
+        if (
+            len(parts) not in {1, 2}
+            or parts[0] not in ALLOWED_BUSINESS_DOMAINS
+            or (len(parts) == 2 and _HELP_SHORTCUT.fullmatch(parts[1]) is None)
+        ):
+            raise LarkCLIFullError("invalid_command", "帮助查询只允许已批准的飞书业务域。")
+        return " ".join(parts)
 
     @staticmethod
     def _validate_execute_argv(argv: Sequence[str]) -> tuple[str, ...]:

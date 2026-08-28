@@ -2,7 +2,7 @@ from sqlalchemy import delete, select
 
 from app.auth.security import hash_password
 from app.database import SessionLocal
-from app.models import Organization, OrganizationMembership, Role, User
+from app.models import NotificationOutbox, Organization, OrganizationMembership, Role, User
 
 
 async def test_portal_and_dashboard_use_current_organization_context(
@@ -130,6 +130,47 @@ async def test_portal_and_dashboard_reject_guest_surface(client) -> None:
                 await db.execute(
                     delete(User).where(User.id == guest_id)
                 )
+                await db.commit()
+
+
+async def test_dashboard_notifications_come_from_the_real_outbox(
+    client, admin_headers: dict[str, str]
+) -> None:
+    async with SessionLocal() as db:
+        admin = await db.scalar(select(User).where(User.username == "admin"))
+        assert admin is not None
+        notification = NotificationOutbox(
+            organization_id=admin.default_organization_id,
+            event_key="dashboard-real-notification-probe",
+            event_type="pipeline.decision.pending",
+            payload={
+                "decision_id": 987,
+                "task_id": 654,
+                "status": "pending",
+                "recipient_user_ids": [admin.id],
+            },
+            status="pending",
+        )
+        db.add(notification)
+        await db.commit()
+        notification_id = notification.id
+
+    try:
+        response = await client.get("/api/dashboard", headers=admin_headers)
+        assert response.status_code == 200, response.text
+        matching = next(
+            item
+            for item in response.json()["notifications"]
+            if item["id"] == str(notification_id)
+        )
+        assert matching["title"] == "定时任务结果待审批"
+        assert matching["read"] is False
+        assert matching["path"] == "/pipeline"
+    finally:
+        async with SessionLocal() as db:
+            row = await db.get(NotificationOutbox, notification_id)
+            if row is not None:
+                await db.delete(row)
                 await db.commit()
 
 

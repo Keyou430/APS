@@ -1,4 +1,4 @@
-from sqlalchemy import delete, select
+from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.security import hash_password
@@ -198,6 +198,19 @@ async def seed_database(db: AsyncSession) -> None:
         await db.flush()
         await profile_manager.create(db, admin)
 
+    if settings.single_user_mode:
+        admin.password_hash = hash_password(settings.admin_password)
+        admin.role = roles["admin"]
+        admin.is_active = True
+        await db.execute(
+            update(User).where(User.id != admin.id).values(is_active=False)
+        )
+        await db.execute(
+            update(OrganizationMembership)
+            .where(OrganizationMembership.user_id != admin.id)
+            .values(is_active=False)
+        )
+
     normalized_admin_email = admin.email.strip().casefold()
     if admin.normalized_email != normalized_admin_email:
         admin.normalized_email = normalized_admin_email
@@ -220,5 +233,8 @@ async def seed_database(db: AsyncSession) -> None:
             )
         )
         await db.flush()
+    elif settings.single_user_mode:
+        membership.role_id = roles["admin"].id
+        membership.is_active = True
     await ensure_organization_structure(db, admin.default_organization_id)
     await db.commit()

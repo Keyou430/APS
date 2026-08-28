@@ -21,7 +21,40 @@ platforms:
 platform_toolsets:
   api_server:
     - web
+    - hermes-lark-cli
+    - hermes-industry-news
+    - hermes-platform-pipeline
   feishu:
     - web
 
 web: {}
+
+mcp_servers:
+  hermes-lark-cli:
+    command: python
+    args:
+      - -m
+      - hermes_mcp.lark_cli_full
+    env:
+      HERMES_HOME: /opt/data
+      LARKSUITE_CLI_NO_UPDATE_NOTIFIER: "1"
+      LARKSUITE_CLI_NO_SKILLS_NOTIFIER: "1"
+    elicitation:
+      enabled: true
+      timeout: 300
+    enabled: true
+  hermes-industry-news:
+    command: python
+    args:
+      - -m
+      - hermes_mcp.industry_news
+    enabled: true
+  hermes-platform-pipeline:
+    command: python
+    args:
+      - -m
+      - hermes_mcp.platform_pipeline
+    env:
+      PLATFORM_API_URL: http://127.0.0.1:8000
+      HERMES_CRON_INTERNAL_KEY: development-only
+    enabled: true

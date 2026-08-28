@@ -1,7 +1,7 @@
 import type { ApiClient } from "../client";
 import { appendQuery, type QueryValue } from "./serviceUtils";
 
-type DashboardGridItem = {
+export type DashboardGridItem = {
   h: number;
   i: string;
   maxH?: number | null;
@@ -55,12 +55,16 @@ export type DashboardDecisionStatus =
 
 export type DashboardDecision = {
   action?: string;
-  approvedAt?: string | null;
+  approved_at?: string | null;
   confidence?: number | null;
-  generatedAt?: string | null;
+  generated_at?: string | null;
   id: number | string;
-  rejectedAt?: string | null;
-  rejectionReason?: string | null;
+  approval_comment?: string | null;
+  approver_user_id?: number | string | null;
+  decided_at?: string | null;
+  rejected_at?: string | null;
+  reason_type?: "no_need" | "other" | "regenerate" | string | null;
+  rejection_reason?: string | null;
   sourceTask?: string | null;
   status: DashboardDecisionStatus;
   summary?: string;
@@ -75,14 +79,21 @@ export type DashboardDecisionRejectPayload = {
   reason: string;
   reason_type: "no_need" | "other" | "regenerate";
 };
+export type DashboardDecisionApprovePayload = {
+  comment?: string;
+};
 
 export type DashboardService = {
-  approveDecision(id: number | string): Promise<DashboardDecision>;
+  approveDecision(
+    id: number | string,
+    payload?: DashboardDecisionApprovePayload,
+  ): Promise<DashboardDecision>;
   getDashboard(): Promise<DashboardDataResponse>;
   getLayout(): Promise<DashboardLayoutResponse>;
   listDecisions(
     query?: DashboardDecisionListQuery,
   ): Promise<DashboardDecisionListResponse>;
+  releaseDecisionIntent(id: number | string, action: "approve" | "reject"): void;
   rejectDecision(
     id: number | string,
     payload: DashboardDecisionRejectPayload,
@@ -104,12 +115,13 @@ function idempotencyKey(operation: string, id: number | string): string {
 
 export function createDashboardService(client: ApiClient): DashboardService {
   return {
-    approveDecision(id) {
+    approveDecision(id, payload) {
       return client.request<DashboardDecision>(
         `/dashboard/decisions/${id}/approve`,
         {
           method: "POST",
           headers: { "Idempotency-Key": idempotencyKey("decision-approve", id) },
+          ...(payload ? { body: payload } : {}),
         },
       );
     },
@@ -123,6 +135,9 @@ export function createDashboardService(client: ApiClient): DashboardService {
       return client.request<DashboardDecisionListResponse>(
         appendQuery("/dashboard/decisions", query),
       );
+    },
+    releaseDecisionIntent(id, action) {
+      operationKeys.delete(`decision-${action}:${String(id)}`);
     },
     rejectDecision(id, payload) {
       return client.request<DashboardDecision>(

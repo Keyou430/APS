@@ -55,6 +55,8 @@ platform_toolsets:
     - skills
     - dingtalk_documents
     - web
+    - hermes-lark-cli
+    - hermes-industry-news
   dingtalk:
     - skills
     - file
@@ -64,3 +66,24 @@ platform_toolsets:
 # Provider selection is intentionally credential-driven and fail-closed. Set an explicit
 # backend only in the ignored deploy/.env/runtime override after external approval.
 web: {}
+
+mcp_servers:
+  hermes-lark-cli:
+    command: python
+    args:
+      - -m
+      - hermes_mcp.lark_cli_full
+    env:
+      HERMES_HOME: /opt/data
+      LARKSUITE_CLI_NO_UPDATE_NOTIFIER: "1"
+      LARKSUITE_CLI_NO_SKILLS_NOTIFIER: "1"
+    elicitation:
+      enabled: true
+      timeout: 300
+    enabled: true
+  hermes-industry-news:
+    command: python
+    args:
+      - -m
+      - hermes_mcp.industry_news
+    enabled: true

@@ -128,6 +128,7 @@ MemoryModeContext = Annotated[
     OrganizationContext, Depends(require_permission("chat:use", "memory:read"))
 ]
 _run_admission_lock = asyncio.Lock()
+_admission_release_events: dict[str, asyncio.Event] = {}
 _RUN_ADMISSION_LOCK_KEY = 0x4845524D4553
 _DEFAULT_SESSION_TITLES = {"", "new conversation", "新对话", "新会话"}
 _MAX_CHAT_ATTACHMENT_BYTES = 10 * 1024 * 1024
@@ -294,8 +295,15 @@ async def prepare_chat_attachment(
 
 
 async def cleanup_runner_for(session: ChatSession) -> None:
-    if getattr(session, "hermes_backend", "agent") == "agent":
-        await sandbox_runner_client.cleanup_task(session.hermes_session_id)
+    await cleanup_runner(
+        getattr(session, "hermes_backend", "agent"),
+        session.hermes_session_id,
+    )
+
+
+async def cleanup_runner(hermes_backend: str, hermes_session_id: str) -> None:
+    if hermes_backend == "agent":
+        await sandbox_runner_client.cleanup_task(hermes_session_id)
 
 
 async def read_authorized_feishu_link(url: str, organization_id: int) -> str:
@@ -574,6 +582,12 @@ async def stop_upstream_run(
         return {"run_id": run_id, "status": "already_stopped"}
 
 
+def release_run_admission(admission_id: str) -> None:
+    event = _admission_release_events.pop(admission_id, None)
+    if event is not None:
+        event.set()
+
+
 async def owned_session(
     db: AsyncSession,
     session_id: int,
@@ -586,9 +600,9 @@ async def owned_session(
             ChatSession.id == session_id,
             ChatSession.user_id == user_id,
             ChatSession.organization_id == organization_id,
-        )
+    )
     if for_update:
-        statement = statement.with_for_update()
+        statement = statement.with_for_update().execution_options(populate_existing=True)
     session = await db.scalar(statement)
     if session is None:
         raise HTTPException(status_code=404, detail="Chat session not found")
@@ -996,12 +1010,20 @@ async def send_message(
         await enforce_run_quotas(db, user_id=user.id, organization_id=organization_id)
         request_context = hermes_context_for(session, user_id=user.id, organization_id=organization_id)
         provider = provider_for_session(session)
+        hermes_backend = session.hermes_backend
+        hermes_session_id = session.hermes_session_id
         if session.title.strip().casefold() in _DEFAULT_SESSION_TITLES:
             session.title = summarize_session_title(payload.content)
         admission_id = f"admitting-{uuid4().hex}"
+        admission_release = asyncio.Event()
+        _admission_release_events[admission_id] = admission_release
         session.active_hermes_run_id = admission_id
         session.active_run_status = "admitting"
-        await db.commit()
+        try:
+            await db.commit()
+        except BaseException:
+            release_run_admission(admission_id)
+            raise
 
     content = payload.content
     instructions = None
@@ -1022,14 +1044,11 @@ async def send_message(
         )
         command = parse_scheduled_pipeline_command(payload.content)
         if command is not None:
-            if command.status != "ready":
+            if command.status != "draft":
                 platform_action = schedule_required_action()
             elif payload.client_message_id is None:
                 platform_action = idempotency_required_action()
-            elif not (
-                has_permission(context.membership, "pipeline:write")
-                and has_permission(context.membership, "pipeline:run")
-            ):
+            elif not has_permission(context.membership, "pipeline:write"):
                 platform_action = permission_denied_action()
             else:
                 platform_action = await execute_scheduled_pipeline_command(
@@ -1169,13 +1188,6 @@ async def send_message(
                 chat_session_id=session.id,
             )
             await db.commit()
-            try:
-                before_messages = await provider.get_session_messages(
-                    session.hermes_session_id,
-                    context=request_context,
-                )
-            except AttributeError:
-                before_messages = []
         elif payload.source_ids is not None:
             raise HTTPException(
                 status_code=400,
@@ -1191,10 +1203,24 @@ async def send_message(
             instructions = "\n\n".join(
                 item for item in (instructions, platform_action.as_instruction()) if item
             )
+        try:
+            before_messages = await provider.get_session_messages(
+                session.hermes_session_id,
+                context=request_context,
+            )
+        except AttributeError:
+            before_messages = []
+        conversation_history = [
+            {"role": str(message["role"]), "content": str(message["content"])}
+            for message in before_messages
+            if message.get("role") in {"user", "assistant"}
+            and str(message.get("content") or "").strip()
+        ]
         run_id = await provider.create_response(
             content,
             session.hermes_session_id,
             context=request_context,
+            conversation_history=conversation_history,
             idempotency_key=(
                 f"platform-chat-{session.id}-{payload.client_message_id}"
                 if payload.client_message_id is not None
@@ -1208,7 +1234,7 @@ async def send_message(
             try:
                 await stop_upstream_run(run_id, request_context, provider)
             finally:
-                await cleanup_runner_for(session)
+                await cleanup_runner(hermes_backend, hermes_session_id)
         async with _run_admission_lock:
             try:
                 current = await owned_session(db, session_id, user.id, organization_id, for_update=True)
@@ -1216,8 +1242,11 @@ async def send_message(
                 current = None
             if current is not None and current.active_hermes_run_id == admission_id:
                 current.active_hermes_run_id = None
-                current.active_run_status = "failed"
+                current.active_run_status = (
+                    "stopped" if current.active_run_status == "stop_requested" else "failed"
+                )
                 await db.commit()
+        release_run_admission(admission_id)
         if isinstance(error, HermesUpstreamError):
             raise HTTPException(
                 status_code=503,
@@ -1233,7 +1262,10 @@ async def send_message(
             session = await owned_session(db, session_id, user.id, organization_id, for_update=True)
         except HTTPException:
             conflict = True
-        if not conflict and session.active_hermes_run_id != admission_id:
+        if not conflict and (
+            session.active_hermes_run_id != admission_id
+            or session.active_run_status == "stop_requested"
+        ):
             conflict = True
         if not conflict:
             session.active_hermes_run_id = run_id
@@ -1279,9 +1311,22 @@ async def send_message(
         try:
             await stop_upstream_run(run_id, request_context, provider)
         finally:
-            await cleanup_runner_for(session)
+            await cleanup_runner(hermes_backend, hermes_session_id)
+        async with _run_admission_lock:
+            async with SessionLocal() as lifecycle_db:
+                current = await lifecycle_db.get(ChatSession, session_id)
+                if current is not None and current.active_hermes_run_id == admission_id:
+                    current.active_hermes_run_id = None
+                    current.active_run_status = (
+                        "stopped"
+                        if current.active_run_status == "stop_requested"
+                        else "failed"
+                    )
+                    await lifecycle_db.commit()
+        release_run_admission(admission_id)
         raise HTTPException(status_code=409, detail="Chat session changed during run admission")
 
+    release_run_admission(admission_id)
     events = provider.stream_events(
         run_id,
         session.hermes_session_id,
@@ -1333,14 +1378,45 @@ async def stop_run(
     context: ChatContext,
 ) -> RunStopResponse:
     organization_id = context.organization_id
-    session = await owned_session(
-        db, session_id, user.id, organization_id, for_update=True
-    )
-    if session.active_hermes_run_id != run_id:
-        raise HTTPException(status_code=404, detail="Active Hermes run not found")
-    if _is_admission_marker(run_id):
-        await db.commit()
-        raise HTTPException(status_code=409, detail="Chat run is still being admitted")
+    admission_release: asyncio.Event | None = None
+    async with _run_admission_lock:
+        session = await owned_session(
+            db, session_id, user.id, organization_id, for_update=True
+        )
+        if run_id == "active":
+            if session.active_hermes_run_id is None:
+                raise HTTPException(status_code=404, detail="Active Hermes run not found")
+            run_id = session.active_hermes_run_id
+        if session.active_hermes_run_id != run_id:
+            raise HTTPException(status_code=404, detail="Active Hermes run not found")
+        if _is_admission_marker(run_id):
+            admission_release = _admission_release_events.get(run_id)
+            if admission_release is None:
+                session.active_hermes_run_id = None
+                session.active_run_status = "stopped"
+                await record_audit(
+                    db,
+                    context.membership,
+                    action="hermes.run.stop",
+                    resource_type="hermes_run",
+                    resource_id=run_id,
+                    details={"session_id": session.id, "status": "stopped_orphaned_admission"},
+                )
+                await db.commit()
+                return RunStopResponse(run_id=run_id, status="stopped")
+            session.active_run_status = "stop_requested"
+            await record_audit(
+                db,
+                context.membership,
+                action="hermes.run.stop",
+                resource_type="hermes_run",
+                resource_id=run_id,
+                details={"session_id": session.id, "status": "stop_requested_before_start"},
+            )
+            await db.commit()
+    if admission_release is not None:
+        await admission_release.wait()
+        return RunStopResponse(run_id=run_id, status="stopped")
     request_context = hermes_context_for(
         session, user_id=user.id, organization_id=organization_id
     )

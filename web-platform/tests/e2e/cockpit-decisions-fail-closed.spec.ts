@@ -223,6 +223,24 @@ test("scheduled task modal stays inside the viewport with task results", async (
   });
 
   await page.goto("/");
+  const decisionPreview = page.locator(
+    "#cockpitDecisionList .cockpit-decision-preview-grid",
+  );
+  await expect(decisionPreview.locator("[data-decision-id]")).toHaveCount(5);
+  await expect(decisionPreview.getByText("服务台知识库补全")).toHaveCount(0);
+
+  const viewAllButton = page.locator("#cockpitDecisionViewAll");
+  await expect(viewAllButton).toBeVisible();
+  await viewAllButton.click();
+
+  const decisionDrawer = page.getByRole("dialog", { name: "全部智能决策" });
+  await expect(decisionDrawer).toBeVisible();
+  await expect(decisionDrawer.locator("[data-decision-id]")).toHaveCount(6);
+  await expect(decisionDrawer).toContainText("服务台知识库补全");
+  await decisionDrawer.getByRole("button", { name: "关闭" }).click();
+  await expect(decisionDrawer).toHaveCount(0);
+  await expect(viewAllButton).toBeFocused();
+
   await page.getByText("定时任务看板").first().click();
   const modal = page.getByRole("dialog", { name: "定时任务看板" });
   await expect(modal).toBeVisible();

@@ -101,7 +101,7 @@ async def test_invalid_cron_is_rejected_at_task_creation(
             "prompt": "search trends",
             "task_type": "web_research",
             "schedule": "0 0 30 2 *",
-            "timezone": "UTC",
+            "timezone": "Asia/Shanghai",
             "input_sources": ["web"],
             "output_format": "markdown",
         },
@@ -122,7 +122,7 @@ async def test_due_task_enqueues_exactly_one_scheduled_run_and_advances(
             "prompt": "search trends",
             "task_type": "general",
             "schedule": "0 9 * * 3",
-            "timezone": "UTC",
+            "timezone": "Asia/Shanghai",
             "input_sources": [],
             "output_format": "markdown",
         },
@@ -133,6 +133,7 @@ async def test_due_task_enqueues_exactly_one_scheduled_run_and_advances(
     async with SessionLocal() as db:
         task = await db.get(PipelineTask, task_id)
         assert task is not None
+        task.hermes_cron_job_id = None
         # Simulate a slot that became due an hour ago.
         task.next_run_at = datetime.now(UTC) - timedelta(hours=1)
         await db.commit()
@@ -172,7 +173,7 @@ async def test_worker_cycle_executes_enqueued_scheduled_run(
             "prompt": "search trends",
             "task_type": "web_research",
             "schedule": "0 9 * * 3",
-            "timezone": "UTC",
+            "timezone": "Asia/Shanghai",
             "input_sources": ["web"],
             "output_format": "markdown",
         },
@@ -183,6 +184,7 @@ async def test_worker_cycle_executes_enqueued_scheduled_run(
     async with SessionLocal() as db:
         task = await db.get(PipelineTask, task_id)
         assert task is not None
+        task.hermes_cron_job_id = None
         task.next_run_at = datetime.now(UTC) - timedelta(minutes=1)
         await db.commit()
 

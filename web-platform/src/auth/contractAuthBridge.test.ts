@@ -59,6 +59,7 @@ describe("contract auth bridge", () => {
   it("exposes refresh, fetchMe and logout through the runtime store", async () => {
     const runtime = {
       store: {
+        commitUser: vi.fn(),
         commitToken: vi.fn(),
         getState: vi.fn(() => ({ session })),
         logout: vi.fn(async () => undefined),
@@ -90,6 +91,7 @@ describe("contract auth bridge", () => {
       skipRefresh: true,
     });
     expect(runtime.client.request).toHaveBeenNthCalledWith(2, "/auth/me");
+    expect(runtime.store.commitUser).toHaveBeenCalledWith(session.user);
     expect(runtime.store.commitToken).toHaveBeenCalledWith({
       access_token: "fresh-access",
       refresh_token: "fresh-refresh",

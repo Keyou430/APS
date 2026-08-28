@@ -3,7 +3,7 @@ import "@testing-library/jest-dom/vitest";
 import { describe, expect, it, vi } from "vitest";
 import type { AppRuntime } from "./appRuntime";
 import { App } from "./App";
-import { appRoutes, isReactOwnedRoute, resolveRoute } from "./routes";
+import { appRoutes, isReactOwnedRoute } from "./routes";
 
 function createRuntime(): AppRuntime {
   return {
@@ -178,7 +178,6 @@ describe("React app shell", () => {
       "skills",
       "reminders",
       "hermes",
-      "admin",
     ]);
     expect(appRoutes.every((route) => route.statuses.includes("error"))).toBe(
       true,
@@ -186,13 +185,12 @@ describe("React app shell", () => {
   });
 
   it("renders the legacy workspace inside the React route host", () => {
-    const view = render(<App />);
+    render(<App />);
 
-    expect(view.container.querySelector('[data-entry="react-route-shell"]')).toHaveAttribute(
+    expect(screen.getByRole("application")).toHaveAttribute(
       "data-entry",
       "react-route-shell",
     );
-    expect(screen.queryByRole("application")).not.toBeInTheDocument();
     expect(screen.getByLabelText("legacy workspace host")).toHaveAttribute(
       "data-route",
       "dashboard",
@@ -208,19 +206,15 @@ describe("React app shell", () => {
     expect(screen.queryByLabelText("legacy workspace host")).not.toBeInTheDocument();
   });
 
-  it("renders the dashboard route as a React page", async () => {
+  it("keeps the dashboard route on the legacy cockpit", () => {
     render(<App pathname="/" runtime={createRuntime()} />);
 
-    expect(
-      await screen.findByRole("heading", { name: "驾驶舱" }),
-    ).toBeInTheDocument();
-    expect(screen.queryByLabelText("legacy workspace host")).not.toBeInTheDocument();
-    expect(isReactOwnedRoute("/")).toBe(true);
-  });
-
-  it("declares account management as a React-owned route", () => {
-    expect(isReactOwnedRoute("/admin")).toBe(true);
-    expect(resolveRoute("/admin").id).toBe("admin");
+    expect(screen.getByLabelText("legacy workspace host")).toHaveAttribute(
+      "data-route",
+      "dashboard",
+    );
+    expect(screen.queryByRole("heading", { name: "驾驶舱" })).not.toBeInTheDocument();
+    expect(isReactOwnedRoute("/")).toBe(false);
   });
 
   it("renders the portal route as a React page", async () => {

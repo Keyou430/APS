@@ -141,4 +141,31 @@ describe("enterprise service", () => {
       body: { completed: true },
     });
   });
+
+  it("creates and publishes a notice as one UI operation", async () => {
+    const request = vi
+      .fn()
+      .mockResolvedValueOnce({ id: 3, status: "draft" })
+      .mockResolvedValueOnce({ id: 3, status: "published" });
+    const client: ApiClient = {
+      request: async (path, options) => request(path, options),
+    };
+    const service = createEnterpriseService(client);
+
+    const result = await service.createPublishedAnnouncement({
+      title: "公告",
+      content: "正文",
+    });
+
+    expect(result).toMatchObject({ id: 3, status: "published" });
+    expect(request).toHaveBeenNthCalledWith(1, "/enterprise/announcements", {
+      method: "POST",
+      body: { title: "公告", content: "正文" },
+    });
+    expect(request).toHaveBeenNthCalledWith(
+      2,
+      "/enterprise/announcements/3/publish",
+      { method: "POST" },
+    );
+  });
 });

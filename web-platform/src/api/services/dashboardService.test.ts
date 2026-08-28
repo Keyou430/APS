@@ -68,7 +68,9 @@ describe("dashboard service", () => {
     const service = createDashboardService(client);
 
     await service.listDecisions({ limit: 5, status: "pending" });
-    await service.approveDecision("decision-1");
+    await service.approveDecision("decision-1", {
+      comment: "已核对来源，可以归档",
+    });
     await service.rejectDecision("decision-1", {
       reason: "数据口径需要按华东区单独分析",
       reason_type: "regenerate",
@@ -85,6 +87,7 @@ describe("dashboard service", () => {
       {
         method: "POST",
         headers: { "Idempotency-Key": expect.any(String) },
+        body: { comment: "已核对来源，可以归档" },
       },
     );
     expect(request).toHaveBeenNthCalledWith(
@@ -99,5 +102,20 @@ describe("dashboard service", () => {
         },
       },
     );
+  });
+
+  it("releases a completed rejection intent before an explicit regeneration retry", async () => {
+    const { client, request } = createClient();
+    request.mockResolvedValue({ id: "decision-retry", status: "regenerating" });
+    const service = createDashboardService(client);
+    const payload = { reason: "补充当天待办详情", reason_type: "regenerate" as const };
+
+    await service.rejectDecision("decision-retry", payload);
+    const firstKey = request.mock.calls[0][1].headers["Idempotency-Key"];
+    service.releaseDecisionIntent("decision-retry", "reject");
+    await service.rejectDecision("decision-retry", payload);
+    const retryKey = request.mock.calls[1][1].headers["Idempotency-Key"];
+
+    expect(retryKey).not.toBe(firstKey);
   });
 });

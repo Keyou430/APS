@@ -1,11 +1,15 @@
 import os
 from pathlib import Path
+from unittest.mock import AsyncMock, patch
 
 os.environ["DATABASE_URL"] = "sqlite+aiosqlite:///./test_agent_platform.db"
 os.environ["JWT_SECRET_KEY"] = "test-secret-key-with-sufficient-length"
 os.environ["RAG_QUERY_AUDIT_HMAC_KEY"] = "test-only-query-audit-key"
+os.environ["SINGLE_USER_MODE"] = "false"
+os.environ["HERMES_USE_HTTP"] = "false"
 
 import pytest_asyncio
+import pytest
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import delete
 
@@ -34,6 +38,19 @@ from app.models import (
     PipelineTask,
 )
 from app.seed import seed_database
+
+
+@pytest.fixture(autouse=True)
+def stub_hermes_cron_registration():
+    register = AsyncMock(return_value="test-hermes-cron-job")
+    with (
+        patch("app.routers.pipeline.register_hermes_cron", new=register),
+        patch(
+            "app.main.reconcile_unbound_pipeline_tasks",
+            new=AsyncMock(return_value=0),
+        ),
+    ):
+        yield register
 
 
 @pytest_asyncio.fixture(scope="session", loop_scope="session", autouse=True)

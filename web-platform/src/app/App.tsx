@@ -1,8 +1,7 @@
 import { useCallback, useSyncExternalStore } from "react";
 import { LegacyWorkspaceHost } from "./LegacyWorkspaceHost";
-import { AppShell } from "./AppShell";
 import type { AppRuntime } from "./appRuntime";
-import { isReactOwnedRoute, resolveRoute, type AppRoute } from "./routes";
+import { resolveRoute, type AppRoute } from "./routes";
 import { DashboardPage } from "../pages/DashboardPage";
 import { HermesPage } from "../pages/HermesPage";
 import { InvitationsPage } from "../pages/InvitationsPage";
@@ -41,19 +40,10 @@ export function App({ pathname = "/", runtime }: AppProps) {
     getOrganizationId,
   );
 
-  if (
-    !appRuntime ||
-    activeRoute.status !== "react-ready" ||
-    !isReactOwnedRoute(pathname)
-  ) {
-    return (
-      <div data-active-route={activeRoute.id} data-entry="react-route-shell">
-        <LegacyWorkspaceHost routeId={activeRoute.id} />
-      </div>
-    );
-  }
-
   const routeContent = (() => {
+    if (!appRuntime || activeRoute.status !== "react-ready") {
+      return <LegacyWorkspaceHost routeId={activeRoute.id} />;
+    }
 
     if (activeRoute.id === "dashboard") {
       return (
@@ -76,7 +66,7 @@ export function App({ pathname = "/", runtime }: AppProps) {
     }
 
     if (activeRoute.id === "chat") {
-      return <ChatPage cache={appRuntime.auth.cache} knowledgeService={appRuntime.services.knowledge} organizationId={organizationId} service={appRuntime.services.chat} stream={appRuntime.services.chatStream} />;
+      return <ChatPage cache={appRuntime.auth.cache} organizationId={organizationId} pipeline={appRuntime.services.pipeline} service={appRuntime.services.chat} stream={appRuntime.services.chatStream} />;
     }
 
     if (activeRoute.id === "knowledge") {
@@ -138,12 +128,12 @@ export function App({ pathname = "/", runtime }: AppProps) {
 
   return (
     <div
+      role="application"
+      aria-label="星纪云1.0"
       data-entry="react-route-shell"
       data-active-route={activeRoute.id}
     >
-      <AppShell pathname={pathname} runtime={appRuntime}>
-        {routeContent}
-      </AppShell>
+      {routeContent}
     </div>
   );
 }

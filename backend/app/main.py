@@ -34,6 +34,7 @@ from app.routers import (
 )
 from sqlalchemy import text
 from app.services.work_item_archiver import run_work_item_archiver
+from app.services.hermes_cron_bridge import reconcile_unbound_pipeline_tasks
 
 settings = get_settings()
 
@@ -58,6 +59,7 @@ OPENAPI_TAGS = [
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     settings.upload_dir.mkdir(parents=True, exist_ok=True)
+    await reconcile_unbound_pipeline_tasks(SessionLocal)
     archive_task: asyncio.Task[None] | None = None
     if settings.work_item_archive_enabled:
         archive_task = asyncio.create_task(

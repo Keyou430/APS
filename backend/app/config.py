@@ -24,10 +24,12 @@ class Settings(BaseSettings):
     hermes_api_url: str = "http://127.0.0.1:8642"
     hermes_knowledge_api_url: str = "http://127.0.0.1:8643"
     hermes_api_key: SecretStr | None = None
-    hermes_use_http: bool = False
-    hermes_http_timeout_seconds: float = 30.0
+    hermes_use_http: bool = True
+    hermes_http_timeout_seconds: float = 180.0
     hermes_http_connect_timeout_seconds: float = 5.0
     hermes_http_max_retries: int = 1
+    hermes_cron_internal_key: str = "development-only"
+    platform_internal_api_url: str = "http://127.0.0.1:8000"
     memory_extraction_enabled: bool = False
     memory_extraction_provider: str = "platform-disabled"
     memory_extraction_provider_version: str = "v1"
@@ -36,6 +38,7 @@ class Settings(BaseSettings):
     memory_worker_lease_seconds: float = Field(default=300.0, gt=0)
     pipeline_worker_lease_seconds: float = Field(default=300.0, gt=0)
     pipeline_worker_max_attempts: int = Field(default=3, gt=0, le=10)
+    pipeline_approval_worker_poll_seconds: float = Field(default=30.0, gt=0, le=3600)
     feishu_app_id: str | None = None
     feishu_app_secret: SecretStr | None = None
     feishu_delivery_configured: bool = False
@@ -93,6 +96,7 @@ class Settings(BaseSettings):
     smtp_timeout_seconds: float = Field(default=10.0, gt=0)
     upload_dir: Path = Path("./uploads")
     cors_origins: list[str] = ["http://localhost:5173"]
+    single_user_mode: bool = True
     admin_username: str = "admin"
     admin_password: str = "admin123"
     admin_email: str = "admin@example.com"
@@ -122,7 +126,9 @@ class Settings(BaseSettings):
         if production:
             if self.jwt_secret_key in {"development-only-change-me", "change-this"}:
                 raise ValueError("JWT_SECRET_KEY must be replaced in production-like environments")
-            if self.admin_password in {"admin123", "change-this-admin-password"}:
+            if self.admin_password == "change-this-admin-password" or (
+                not self.single_user_mode and self.admin_password == "admin123"
+            ):
                 raise ValueError("ADMIN_PASSWORD must be replaced in production-like environments")
             hmac_key = (
                 self.rag_query_audit_hmac_key.get_secret_value()

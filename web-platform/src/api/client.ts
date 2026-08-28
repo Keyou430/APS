@@ -157,7 +157,8 @@ export function createApiClient(options: ApiClientOptions = {}): ApiClient {
       !hasRetried &&
       !requestOptions.skipRefresh &&
       !isAuthEndpoint(path) &&
-      options.refresh
+      options.refresh &&
+      token
     ) {
       try {
         await ensureRefresh();

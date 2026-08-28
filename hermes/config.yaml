@@ -7,6 +7,8 @@ platform_toolsets:
   api_server:
     - web
     - hermes-lark-cli
+    - hermes-industry-news
+    - hermes-platform-pipeline
 gateway:
   platforms:
     feishu:
@@ -33,10 +35,28 @@ mcp_servers:
       - -m
       - hermes_mcp.lark_cli_full
     env:
-      PYTHONPATH: D:\Replica1.0\hermes\MCP\src
-      HERMES_HOME: D:\Replica1.0\hermes
+      PYTHONPATH: C:\Users\86135\.codex\worktrees\b955\Replica1.0\hermes\MCP\src
+      HERMES_HOME: C:\Users\86135\.codex\worktrees\b955\Replica1.0\hermes
       LARKSUITE_CLI_NO_UPDATE_NOTIFIER: "1"
       LARKSUITE_CLI_NO_SKILLS_NOTIFIER: "1"
+    enabled: true
+  hermes-industry-news:
+    command: python
+    args:
+      - -m
+      - hermes_mcp.industry_news
+    env:
+      PYTHONPATH: C:\Users\86135\.codex\worktrees\b955\Replica1.0\hermes\MCP\src
+    enabled: true
+  hermes-platform-pipeline:
+    command: python
+    args:
+      - -m
+      - hermes_mcp.platform_pipeline
+    env:
+      PYTHONPATH: C:\Users\86135\.codex\worktrees\b955\Replica1.0\hermes\MCP\src
+      PLATFORM_API_URL: http://127.0.0.1:8000
+      HERMES_CRON_INTERNAL_KEY: development-only
     enabled: true
 
 # ── Security ──────────────────────────────────────────────────────────

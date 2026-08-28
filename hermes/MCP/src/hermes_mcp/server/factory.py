@@ -120,10 +120,12 @@ def register_hermes_tools(
     from hermes_mcp.tools.cron import register_cron_tools
     from hermes_mcp.tools.messaging import register_messaging_tools
     from hermes_mcp.tools.webhook import register_webhook_tools
+    from hermes_mcp.tools.platform_pipeline import register_platform_pipeline_tools
 
     register_messaging_tools(mcp, backend)
     register_webhook_tools(mcp, backend)
     register_cron_tools(mcp, backend)
+    register_platform_pipeline_tools(mcp)
 
 
 def create_server(config: HermesMCPConfig | None = None) -> FastMCP:

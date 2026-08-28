@@ -104,16 +104,25 @@ describe("PipelinePage", () => {
     );
     await user.click(screen.getByRole("button", { name: "生成任务草稿" }));
 
-    expect(await screen.findByText("行业趋势日报")).toBeInTheDocument();
-    expect(screen.getByText("17:30")).toBeInTheDocument();
-    expect(screen.getByText("Asia/Shanghai")).toBeInTheDocument();
+    await user.clear(await screen.findByLabelText("任务标题"));
+    await user.type(screen.getByLabelText("任务标题"), "行业趋势工作日报");
+    await user.selectOptions(screen.getByLabelText("审批人"), "role");
+    await user.type(screen.getByLabelText("审批角色"), "admin");
+    await user.type(screen.getByLabelText("升级角色"), "admin");
     await user.click(screen.getByRole("button", { name: "确认创建任务" }));
 
     expect(service.createDraft).toHaveBeenCalledWith({
       prompt: "每天17:30搜索行业趋势，整理成Markdown日报",
     });
     expect(service.createTask).toHaveBeenCalledWith(
-      expect.objectContaining({ confirmed: true, title: "行业趋势日报" }),
+      expect.objectContaining({
+        confirmed: true,
+        title: "行业趋势工作日报",
+        schedule: "30 17 * * *",
+        approval_assignee_type: "role",
+        approval_role_name: "admin",
+        approval_escalation_role_name: "admin",
+      }),
     );
     await waitFor(() => expect(service.listTasks).toHaveBeenCalledTimes(2));
   });
@@ -188,10 +197,11 @@ describe("PipelinePage", () => {
     // relies on timers.
     vi.useRealTimers();
 
-    const notice = screen.getByTestId("pipeline-run-notice");
+    const notice = await screen.findByTestId("pipeline-run-notice");
     expect(notice.textContent).toContain("执行中");
     expect(notice.textContent).toContain("running");
     expect(service.runTask).toHaveBeenCalledWith("task-1");
+    expect(service.getRun).toHaveBeenCalledTimes(181);
   });
 
   it("handles approval and request-changes from the approval drawer", async () => {
@@ -202,11 +212,14 @@ describe("PipelinePage", () => {
 
     await user.click(await screen.findByRole("button", { name: "查看审批" }));
     expect(screen.getByRole("dialog", { name: "审批抽屉" })).toBeInTheDocument();
+    await user.type(screen.getByLabelText("同意意见（选填）"), "已核对来源，可以发布");
     await user.click(screen.getByRole("button", { name: "批准 预算审批" }));
     await user.type(screen.getByLabelText("修改说明"), "请补充数据来源");
     await user.click(screen.getByRole("button", { name: "要求修改 预算审批" }));
 
-    expect(service.approveDecision).toHaveBeenCalledWith("decision-1");
+    expect(service.approveDecision).toHaveBeenCalledWith("decision-1", {
+      comment: "已核对来源，可以发布",
+    });
     expect(service.requestChanges).toHaveBeenCalledWith("decision-1", {
       reason: "请补充数据来源",
     });

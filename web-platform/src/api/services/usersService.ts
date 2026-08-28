@@ -2,9 +2,10 @@ import type { ApiClient } from "../client";
 import { appendQuery, type QueryValue } from "./serviceUtils";
 
 export type UserListQuery = Record<string, QueryValue>;
-export type UserCreate = Record<string, unknown>;
-export type UserUpdate = Record<string, unknown>;
-export type RoleAssignment = Record<string, unknown>;
+export type UserRole = "admin" | "manager" | "user";
+export type UserCreate = { username: string; password: string; email: string; role?: UserRole };
+export type UserUpdate = { username?: string; email?: string | null; is_active?: boolean };
+export type RoleAssignment = { role: UserRole };
 export type UserResponse = Record<string, unknown>;
 export type UserListResponse = Record<string, unknown>;
 

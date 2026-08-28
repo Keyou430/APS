@@ -15,6 +15,7 @@ from app.database import get_db
 from app.models import (
     AuditEvent,
     DashboardLayout as DashboardLayoutModel,
+    NotificationOutbox,
     OrganizationMembership,
     PortalAnnouncement,
     PortalAnnouncementRead,
@@ -74,6 +75,15 @@ PortalManageContext = Annotated[
 WorkItemWriteContext = Annotated[
     OrganizationContext, Depends(require_permission("work_items:write"))
 ]
+
+NOTIFICATION_TITLES = {
+    "pipeline.decision.pending": "定时任务结果待审批",
+    "pipeline.decision.reminder": "定时任务结果等待审批",
+    "pipeline.decision.escalation": "定时任务审批已升级",
+    "pipeline.decision.approved": "定时任务结果已同意",
+    "pipeline.decision.rejected": "定时任务结果已驳回",
+    "pipeline.decision.changes_requested": "定时任务正在重新生成",
+}
 
 PORTAL_QUICK_LINKS = (
     QuickLinkResponse(
@@ -992,6 +1002,38 @@ async def get_dashboard(
         for reminder in reminders
         if reminder.type == "recurring" or reminder.recurrence in {"weekly", "monthly"}
     ]
+    notification_rows = list(
+        (
+            await db.scalars(
+                select(NotificationOutbox)
+                .where(NotificationOutbox.organization_id == context.organization_id)
+                .order_by(
+                    NotificationOutbox.created_at.desc(),
+                    NotificationOutbox.id.desc(),
+                )
+                .limit(50)
+            )
+        ).all()
+    )
+    notifications = []
+    for notification in notification_rows:
+        recipient_user_ids = notification.payload.get("recipient_user_ids", [])
+        if recipient_user_ids and context.user_id not in recipient_user_ids:
+            continue
+        notifications.append(
+            {
+                "id": str(notification.id),
+                "title": NOTIFICATION_TITLES.get(
+                    notification.event_type, "平台任务状态已更新"
+                ),
+                "createdAt": notification.created_at,
+                "read": False,
+                "path": "/pipeline",
+                "eventType": notification.event_type,
+            }
+        )
+        if len(notifications) >= 20:
+            break
 
     todos = [
             {
@@ -1035,6 +1077,7 @@ async def get_dashboard(
             }
             for reminder in reminders
         ],
+        notifications=notifications,
         recent_visits=[
             {"id": "knowledge", "label": "企业知识库", "path": "/knowledge"},
             {"id": "portal", "label": "企业门户", "path": "/portal"},

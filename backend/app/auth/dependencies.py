@@ -16,7 +16,9 @@ from app.models import Organization, OrganizationMembership, Role, RolePermissio
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/token")
 
 
-async def get_token_claims(token: Annotated[str, Depends(oauth2_scheme)]) -> dict:
+async def get_token_claims(
+    token: Annotated[str, Depends(oauth2_scheme)],
+) -> dict:
     try:
         return decode_token(token, "access")
     except (ValueError, TypeError):

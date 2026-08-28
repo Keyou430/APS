@@ -79,8 +79,17 @@ test("users can manage custom work platform websites", async ({ page }) => {
   ).toBeVisible();
   await page.getByRole("button", { name: "工作平台" }).click();
   const customWebsiteMenu = page.locator("#customWebsiteMenu");
+  const customWebsiteAdd = page.getByRole("button", {
+    name: "添加自定义网站",
+  });
 
-  await page.getByRole("button", { name: "添加自定义网站" }).click();
+  await expect(customWebsiteAdd).toHaveClass(/custom-website-add/);
+  await expect(customWebsiteAdd.locator("svg use")).toHaveAttribute(
+    "href",
+    "#i-plus",
+  );
+
+  await customWebsiteAdd.click();
   await page
     .locator(".custom-website-view.active")
     .getByLabel("自定义网站名称")
@@ -97,6 +106,9 @@ test("users can manage custom work platform websites", async ({ page }) => {
   await expect(
     customWebsiteMenu.getByRole("button", { name: "采购门户" }),
   ).toBeVisible();
+  await expect(
+    customWebsiteMenu.getByRole("button", { name: "采购门户" }),
+  ).toHaveClass(/custom-website-link/);
   await expect(page.getByRole("heading", { name: "采购门户" })).toBeVisible();
   await expect(
     page
@@ -104,7 +116,7 @@ test("users can manage custom work platform websites", async ({ page }) => {
       .getByLabel("自定义网站地址"),
   ).toHaveValue("https://procurement.example.test/");
 
-  await page.getByRole("button", { name: "添加自定义网站" }).click();
+  await customWebsiteAdd.click();
   await page
     .locator(".custom-website-view.active")
     .getByLabel("自定义网站名称")

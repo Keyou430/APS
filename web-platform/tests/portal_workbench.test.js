@@ -113,12 +113,12 @@ test("portal workbench refinement contracts", async () => {
     "smart decisions must not render the mock-mode demo boundary copy",
   );
   assert.ok(
-    !htmlSource.includes('id="cockpitDecisionDrawer"'),
-    "smart decisions must not use a drawer for status tabs",
+    appSource.includes("function openCockpitDecisionDrawer"),
+    "smart decisions must expose a drawer for the complete decision list",
   );
   assert.ok(
-    !htmlSource.includes('id="cockpitDecisionViewAll"'),
-    "smart decisions must not expose a drawer-based view-all action",
+    appSource.includes("filteredItems.slice(0, COCKPIT_DECISION_PREVIEW_LIMIT)"),
+    "smart decision preview must be limited before opening the complete list",
   );
   assert.ok(
     htmlSource.includes('class="tabs cockpit-decision-filters"'),
@@ -137,6 +137,27 @@ test("portal workbench refinement contracts", async () => {
     "smart decisions must load through a dashboard decision contract when available",
   );
   assert.ok(
+    appSource.includes('getAppRuntimeService("pipeline")') &&
+      appSource.includes("listTasks({ limit: 50 })"),
+    "scheduled task board must load real pipeline tasks instead of deriving tasks only from decisions",
+  );
+  assert.ok(
+    /resolvePlatformAction[\s\S]*fetchCockpitDecisions\(\)/.test(appSource),
+    "chat task actions must refresh cockpit tasks and decisions after creation or execution",
+  );
+  assert.ok(
+    /createTask\([\s\S]*refreshCockpitAfterPipelineAction\(\)[\s\S]*runTask\(/.test(
+      appSource,
+    ),
+    "task creation must refresh the scheduled-task board before an immediate run starts",
+  );
+  assert.ok(
+    /function buildCockpitDecisionRejectPayload\(reason\)[\s\S]*reason_type: "regenerate"/.test(
+      appSource,
+    ) && !/return \{ reason: reason, reason_type: "no_need" \}/.test(appSource),
+    "rejecting a decision must always regenerate from the supplied reason",
+  );
+  assert.ok(
     appSource.includes("function approveCockpitDecision"),
     "smart decisions must support approve actions",
   );
@@ -145,10 +166,8 @@ test("portal workbench refinement contracts", async () => {
     "smart decisions must support reject actions",
   );
   assert.ok(
-    appSource.includes('reason_type: "no_need"') &&
-      appSource.includes('reason_type: "other"') &&
-      appSource.includes('reason_type: "regenerate"'),
-    "rejecting decisions must distinguish archive-only and regeneration reasons",
+    appSource.includes('reason_type: "regenerate"'),
+    "rejecting a decision must pass its reason to a regeneration run",
   );
   assert.ok(
     cssSource.includes(".cockpit-decision-preview-grid"),

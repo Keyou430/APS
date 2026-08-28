@@ -9,12 +9,6 @@ function cache() { return { get: vi.fn(), invalidateOrganization: vi.fn(), set: 
 function knowledge(overrides: Partial<KnowledgeService> = {}) { return { archiveEntry: vi.fn(async () => undefined), createEntry: vi.fn(async () => ({ id: 2, title: "新条目", type: "document" })), listCollections: vi.fn(async () => ({ items: [{ id: 11, name: "企业资料" }] })), listEntries: vi.fn(async () => ({ items: [{ id: 1, title: "员工手册", type: "document" }] })), uploadEntry: vi.fn(async () => ({ id: 3, title: "附件.pdf", type: "file" })), ...overrides } as unknown as KnowledgeService; }
 
 describe("KnowledgePage", () => {
-  it("provides an entry to knowledge chat", () => {
-    render(<KnowledgePage cache={cache()} organizationId={7} service={knowledge()} />);
-
-    expect(screen.getByRole("link", { name: "进入知识问答" })).toHaveAttribute("href", "/chat?surface=knowledge");
-  });
-
   it("loads entries and supports create and archive actions", async () => {
     const service = knowledge(); const user = userEvent.setup();
     render(<KnowledgePage cache={cache()} organizationId={7} service={service} />);

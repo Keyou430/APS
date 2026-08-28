@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from collections.abc import Callable
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -280,6 +281,24 @@ async def test_help_allows_only_root_or_approved_business_domain(tmp_path: Path)
     with pytest.raises(LarkCLIFullError) as captured:
         await backend.help("auth")
     assert captured.value.code == "invalid_command"
+
+
+@pytest.mark.asyncio
+async def test_help_allows_an_approved_business_shortcut(tmp_path: Path) -> None:
+    calls: list[tuple[tuple[str, ...], dict]] = []
+    backend, _ = make_backend(
+        tmp_path,
+        process=FakeProcess(stdout=b"Create document help"),
+        calls=calls,
+    )
+
+    result = await backend.help("docs +create")
+
+    assert result == {
+        "ok": True,
+        "data": {"topic": "docs +create", "content": "Create document help"},
+    }
+    assert calls[0][0] == ("lark-cli", "docs", "+create", "--help")
 
 
 @pytest.mark.asyncio
@@ -703,6 +722,16 @@ class FakeMCP:
         return decorator
 
 
+class FakeElicitationContext:
+    def __init__(self, action: str) -> None:
+        self.action = action
+        self.requests: list[tuple[str, object]] = []
+
+    async def elicit(self, message: str, response_type: object) -> object:
+        self.requests.append((message, response_type))
+        return SimpleNamespace(action=self.action)
+
+
 def test_full_server_registers_exactly_three_controlled_tools(tmp_path: Path) -> None:
     mcp = FakeMCP()
     backend, _ = make_backend(tmp_path)
@@ -719,12 +748,110 @@ def test_full_server_registers_exactly_three_controlled_tools(tmp_path: Path) ->
 
 
 @pytest.mark.asyncio
+async def test_execute_tool_schema_does_not_expose_model_controlled_confirmation(
+    tmp_path: Path,
+) -> None:
+    backend, _ = make_backend(tmp_path)
+    server = create_lark_cli_full_server(backend=backend)
+
+    tool = await server.get_tool("lark_cli_execute")
+
+    assert tool is not None
+    assert tool.parameters["properties"] == {
+        "argv": {"items": {"type": "string"}, "type": "array"}
+    }
+    assert tool.parameters["required"] == ["argv"]
+
+
+@pytest.mark.asyncio
+async def test_help_tool_explains_how_to_query_shortcut_help(tmp_path: Path) -> None:
+    backend, _ = make_backend(tmp_path)
+    server = create_lark_cli_full_server(backend=backend)
+
+    tool = await server.get_tool("lark_cli_help")
+
+    assert tool is not None
+    assert "docs +create" in (tool.description or "")
+
+
+@pytest.mark.asyncio
+async def test_execute_tool_decline_never_retries_the_high_risk_write(
+    tmp_path: Path,
+) -> None:
+    calls: list[tuple[tuple[str, ...], dict]] = []
+    backend = LarkCLIFullBackend(
+        workspace_root=tmp_path,
+        process_factory=process_factory_for(
+            FakeProcess(stderr=confirmation_required(), returncode=10),
+            calls,
+        ),
+        id_factory=lambda: "approval-1",
+    )
+    mcp = FakeMCP()
+    context = FakeElicitationContext("decline")
+    argv = ["task", "+create", "--summary", "Prepare report"]
+    register_lark_cli_full_tools(mcp, backend)
+
+    result = await mcp.tools["lark_cli_execute"](argv, context)
+
+    assert result == {
+        "ok": False,
+        "error": {
+            "code": "confirmation_declined",
+            "message": "用户未批准该飞书高风险操作。",
+            "action": "task +create",
+            "risk": "high-risk-write",
+        },
+    }
+    assert len(calls) == 1
+    assert "--yes" not in calls[0][0]
+    assert len(context.requests) == 1
+    assert "task +create" in context.requests[0][0]
+    assert "high-risk-write" in context.requests[0][0]
+    assert "Prepare report" in context.requests[0][0]
+
+
+@pytest.mark.asyncio
+async def test_execute_tool_user_acceptance_executes_the_bound_write_once(
+    tmp_path: Path,
+) -> None:
+    calls: list[tuple[tuple[str, ...], dict]] = []
+    backend = LarkCLIFullBackend(
+        workspace_root=tmp_path,
+        process_factory=sequence_process_factory(
+            [
+                FakeProcess(stderr=confirmation_required(), returncode=10),
+                FakeProcess(stdout=success({"guid": "task-guid"})),
+            ],
+            calls,
+        ),
+        id_factory=lambda: "approval-1",
+    )
+    mcp = FakeMCP()
+    context = FakeElicitationContext("accept")
+    argv = ["task", "+create", "--summary", "Prepare report"]
+    register_lark_cli_full_tools(mcp, backend)
+
+    result = await mcp.tools["lark_cli_execute"](argv, context)
+
+    assert result == {"ok": True, "data": {"guid": "task-guid"}}
+    assert len(calls) == 2
+    assert "--yes" not in calls[0][0]
+    assert calls[1][0][-1] == "--yes"
+    assert calls[1][0].count("--yes") == 1
+    assert len(context.requests) == 1
+
+
+@pytest.mark.asyncio
 async def test_tool_wrappers_return_safe_error_envelopes(tmp_path: Path) -> None:
     mcp = FakeMCP()
     backend, _ = make_backend(tmp_path)
     register_lark_cli_full_tools(mcp, backend)
 
-    result = await mcp.tools["lark_cli_execute"](["auth", "status"])
+    result = await mcp.tools["lark_cli_execute"](
+        ["auth", "status"],
+        FakeElicitationContext("decline"),
+    )
 
     assert result == {
         "ok": False,

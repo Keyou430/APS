@@ -38,7 +38,7 @@ export const appRoutes: AppRoute[] = [
     label: "驾驶舱",
     path: "/",
     permissions: ["portal:read"],
-    status: "react-ready",
+    status: "legacy-host",
     statuses: standardStatuses,
   },
   {
@@ -129,20 +129,10 @@ export const appRoutes: AppRoute[] = [
     status: "react-ready",
     statuses: standardStatuses,
   },
-  {
-    id: "admin",
-    label: "账号管理",
-    path: "/admin",
-    permissions: ["user:view"],
-    status: "react-ready",
-    statuses: standardStatuses,
-  },
 ];
 
 const reactOwnedRouteIds = new Set([
-  "admin",
   "chat",
-  "dashboard",
   "hermes",
   "invitations",
   "organization",
@@ -161,6 +151,5 @@ export function resolveRoute(pathname: string): AppRoute {
 }
 
 export function isReactOwnedRoute(pathname: string): boolean {
-  const route = appRoutes.find((candidate) => candidate.path === pathname);
-  return route ? reactOwnedRouteIds.has(route.id) : false;
+  return reactOwnedRouteIds.has(resolveRoute(pathname).id);
 }

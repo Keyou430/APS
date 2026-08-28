@@ -6,6 +6,7 @@ import type {
   PipelineTask,
   PipelineTaskDraft,
 } from "../api/services/pipelineService";
+import { PipelineDraftEditor } from "../components/PipelineDraftEditor";
 import { renderSafeAssistantMarkdown } from "../security/safeMarkdown";
 import {
   asObject,
@@ -52,15 +53,9 @@ type PipelineOutputView = {
 
 const TERMINAL_RUN_STATUSES = new Set(["completed", "failed", "cancelled", "missed"]);
 
-function scheduleTime(schedule: string | null | undefined): string {
-  const [minute, hour] = schedule?.split(" ") ?? [];
-  if (!minute || !hour) return "立即运行";
-  return `${hour.padStart(2, "0")}:${minute.padStart(2, "0")}`;
-}
-
 async function waitForRun(service: PipelineService, runId: number | string) {
   let run = await service.getRun(runId);
-  for (let attempt = 0; attempt < 20 && !TERMINAL_RUN_STATUSES.has(String(run.status)); attempt += 1) {
+  for (let attempt = 0; attempt < 180 && !TERMINAL_RUN_STATUSES.has(String(run.status)); attempt += 1) {
     await new Promise((resolve) => window.setTimeout(resolve, 1_000));
     run = await service.getRun(runId);
   }
@@ -147,6 +142,7 @@ export function PipelinePage({
   service,
 }: PipelinePageProps) {
   const [approvalOpen, setApprovalOpen] = useState(false);
+  const [approvalComment, setApprovalComment] = useState("");
   const [actionPending, setActionPending] = useState<string | null>(null);
   const [changeReason, setChangeReason] = useState("");
   const [composerPending, setComposerPending] = useState(false);
@@ -304,10 +300,12 @@ export function PipelinePage({
   }
 
   async function approveDecision(decision: PipelineDecisionView) {
+    const comment = approvalComment.trim();
     setActionPending(decision.id);
     setErrorMessage(null);
     try {
-      await service.approveDecision(decision.id);
+      await service.approveDecision(decision.id, comment ? { comment } : undefined);
+      setApprovalComment("");
       await refreshPipeline();
     } catch (error) {
       setErrorMessage(messageForError(error));
@@ -402,12 +400,7 @@ export function PipelinePage({
         {draft ? (
           <div aria-label="任务确认" className="pipeline-draft-confirmation">
             <h2>{draft.title || "任务草稿"}</h2>
-            <dl>
-              <div><dt>时间</dt><dd>{scheduleTime(draft.schedule)}</dd></div>
-              <div><dt>时区</dt><dd>{draft.timezone || "-"}</dd></div>
-              <div><dt>来源</dt><dd>{draft.input_sources?.join(", ") || "-"}</dd></div>
-              <div><dt>格式</dt><dd>{draft.output_format || "-"}</dd></div>
-            </dl>
+            <PipelineDraftEditor disabled={composerPending} draft={draft} onChange={(patch) => setDraft((current) => current ? { ...current, ...patch } : current)} />
             <div className="pipeline-draft-actions">
               <button
                 disabled={composerPending}
@@ -555,6 +548,13 @@ export function PipelinePage({
               关闭
             </button>
           </div>
+          <label>
+            同意意见（选填）
+            <textarea
+              onChange={(event) => setApprovalComment(event.target.value)}
+              value={approvalComment}
+            />
+          </label>
           <label>
             修改说明
             <textarea

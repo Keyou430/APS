@@ -66,6 +66,68 @@ async def test_wednesday_ai_news_prompt_is_parsed_as_a_scheduled_web_task(
 
 
 @pytest.mark.asyncio
+async def test_feishu_todo_digest_prompt_gets_a_user_facing_task_title(
+    client: AsyncClient, admin_headers: dict[str, str]
+) -> None:
+    response = await client.post(
+        "/api/pipeline/tasks/draft",
+        headers=admin_headers,
+        json={
+            "prompt": "请创建每天09:00读取我的飞书待办并生成摘要的定时任务，并立即执行一次"
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["title"] == "飞书待办每日摘要"
+    assert response.json()["schedule"] == "0 9 * * *"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("prompt", "expected_schedule"),
+    [
+        ("工作日 08:45 读取飞书待办并生成摘要", "45 8 * * 1-5"),
+        ("每周一 10:30 汇总行业热点", "30 10 * * 1"),
+        ("每星期天 18:05 生成任务周报", "5 18 * * 0"),
+        ("每月15日 09:20 生成月度复盘", "20 9 15 * *"),
+    ],
+)
+async def test_pipeline_draft_parses_common_chinese_recurrences(
+    client: AsyncClient,
+    admin_headers: dict[str, str],
+    prompt: str,
+    expected_schedule: str,
+) -> None:
+    response = await client.post(
+        "/api/pipeline/tasks/draft",
+        headers=admin_headers,
+        json={"prompt": prompt},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["schedule"] == expected_schedule
+
+
+@pytest.mark.asyncio
+async def test_feishu_weekly_task_report_draft_uses_a_weekly_report_title(
+    client: AsyncClient, admin_headers: dict[str, str]
+) -> None:
+    response = await client.post(
+        "/api/pipeline/tasks/draft",
+        headers=admin_headers,
+        json={
+            "prompt": (
+                "每周五18:00读取本周时间区间里的全部飞书任务并生成任务周报，"
+                "同时包含已完成和未完成任务"
+            )
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["title"] == "飞书任务周报"
+
+
+@pytest.mark.asyncio
 async def test_pipeline_task_run_decision_output_and_download_are_owner_scoped(
     client: AsyncClient, admin_headers: dict[str, str]
 ) -> None:

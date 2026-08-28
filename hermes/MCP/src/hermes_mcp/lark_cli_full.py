@@ -4,15 +4,20 @@ from __future__ import annotations
 
 import argparse
 import ipaddress
+import json
 import logging
 import os
 import sys
 from pathlib import Path
 from typing import Any
 
-from fastmcp import FastMCP
+from fastmcp import Context, FastMCP
 
-from hermes_mcp.backends.lark_cli_full import LarkCLIFullBackend, LarkCLIFullError
+from hermes_mcp.backends.lark_cli_full import (
+    LarkCLIFullBackend,
+    LarkCLIFullError,
+    redact_diagnostic,
+)
 from hermes_mcp.config.loader import load_config
 from hermes_mcp.config.schema import HermesMCPConfig
 
@@ -24,6 +29,7 @@ def register_lark_cli_full_tools(mcp: Any, backend: LarkCLIFullBackend) -> None:
         name="lark_cli_help",
         description=(
             "查看 lark-cli 根帮助或已批准飞书业务域的帮助。优先寻找 +shortcut；"
+            "查询 shortcut 时把域和命令放在同一个 topic，例如 docs +create。"
             "此工具不访问飞书业务数据。"
         ),
     )
@@ -37,7 +43,8 @@ def register_lark_cli_full_tools(mcp: Any, backend: LarkCLIFullBackend) -> None:
         name="lark_cli_schema",
         description=(
             "查看已批准飞书业务域中一个 typed OpenAPI 方法的参数、scope 和风险。"
-            "调用 typed 方法前先检查 schema；此工具不访问飞书业务数据。"
+            "调用 typed 方法前先检查 schema；+shortcut 应改用 lark_cli_help。"
+            "此工具不访问飞书业务数据。"
         ),
     )
     async def lark_cli_schema(identifier: str) -> object:
@@ -50,20 +57,45 @@ def register_lark_cli_full_tools(mcp: Any, backend: LarkCLIFullBackend) -> None:
         name="lark_cli_execute",
         description=(
             "以用户身份执行受控的 lark-cli 飞书业务参数数组。禁止 Shell、raw api、"
-            "账号配置和直接 --yes。若返回 confirmation_required，必须向用户展示操作并"
-            "取得明确确认，之后原样传回 argv、approval_id 和 confirmed=true。"
+            "账号配置和直接 --yes。高风险写操作会由平台弹出审批，只有用户明确同意后"
+            "才会执行。"
         ),
     )
     async def lark_cli_execute(
         argv: list[str],
-        approval_id: str | None = None,
-        confirmed: bool = False,
+        ctx: Context,
     ) -> object:
         try:
+            result = await backend.execute(argv)
+            error = result.get("error") if isinstance(result, dict) else None
+            if not isinstance(error, dict) or error.get("code") != "confirmation_required":
+                return result
+
+            action = str(error.get("action") or "飞书写操作")
+            risk = str(error.get("risk") or "high-risk-write")
+            approval_id = error.get("approval_id")
+            if not isinstance(approval_id, str) or not approval_id:
+                raise LarkCLIFullError("confirmation_invalid", "高风险操作确认票据无效。")
+
+            argv_summary = redact_diagnostic(json.dumps(argv, ensure_ascii=False))[:1500]
+            approval = await ctx.elicit(
+                f"高风险飞书操作：{action}\n风险：{risk}\n参数：{argv_summary}",
+                None,
+            )
+            if getattr(approval, "action", None) != "accept":
+                return {
+                    "ok": False,
+                    "error": {
+                        "code": "confirmation_declined",
+                        "message": "用户未批准该飞书高风险操作。",
+                        "action": action,
+                        "risk": risk,
+                    },
+                }
             return await backend.execute(
                 argv,
                 approval_id=approval_id,
-                confirmed=confirmed,
+                confirmed=True,
             )
         except LarkCLIFullError as error:
             return error.as_envelope()

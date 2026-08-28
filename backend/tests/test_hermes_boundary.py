@@ -72,6 +72,13 @@ def capability_payload(**overrides: object) -> dict:
     }
 
 
+def test_real_hermes_is_the_default_backend(monkeypatch: pytest.MonkeyPatch) -> None:
+    from app.config import Settings
+
+    monkeypatch.delenv("HERMES_USE_HTTP", raising=False)
+    assert Settings(_env_file=None).hermes_use_http is True
+
+
 @pytest.mark.asyncio
 async def test_capability_probe_checks_health_and_required_features():
     module = hermes_capabilities_module()
@@ -171,6 +178,34 @@ async def test_http_adapter_submits_scoped_run_with_bearer_and_idempotency_heade
     assert request.headers["X-Hermes-Session-Key"] == "org:org-2:user:7"
     assert request.headers["X-Correlation-ID"] == "corr-123"
     assert request.headers["Idempotency-Key"] == "idem-123"
+
+
+@pytest.mark.asyncio
+async def test_http_adapter_submits_conversation_history_for_stateful_runs():
+    module = hermes_client_module()
+    requests: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        return httpx.Response(202, json={"run_id": "run-follow-up"})
+
+    client = module.HermesHttpClient(
+        "http://hermes:8642",
+        api_key="test-api-key",
+        transport=httpx.MockTransport(handler),
+    )
+    history = [
+        {"role": "user", "content": "我叫小明"},
+        {"role": "assistant", "content": "你好，小明。"},
+    ]
+
+    await client.create_response(
+        "我叫什么？",
+        "platform-session-7",
+        conversation_history=history,
+    )
+
+    assert json.loads(requests[0].content)["conversation_history"] == history
 
 
 @pytest.mark.asyncio

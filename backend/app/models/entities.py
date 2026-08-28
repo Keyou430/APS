@@ -18,6 +18,7 @@ from sqlalchemy import (
     false as sa_false,
     func,
     text,
+    true as sa_true,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship, validates
 
@@ -1631,6 +1632,17 @@ class PipelineTask(Base, TimestampMixin):
         CheckConstraint("task_type IN ('web_research', 'general')", name="ck_pipeline_tasks_type"),
         CheckConstraint("output_format IN ('markdown')", name="ck_pipeline_tasks_output_format"),
         CheckConstraint("status IN ('ready', 'paused', 'deleted')", name="ck_pipeline_tasks_status"),
+        CheckConstraint("approval_assignee_type IN ('creator', 'member', 'role')", name="ck_pipeline_tasks_approval_assignee_type"),
+        CheckConstraint(
+            "(approval_assignee_type = 'member' AND approval_assignee_id IS NOT NULL) OR "
+            "(approval_assignee_type != 'member' AND approval_assignee_id IS NULL)",
+            name="ck_pipeline_tasks_approval_member_consistency",
+        ),
+        CheckConstraint(
+            "(approval_assignee_type = 'role' AND approval_role_name IS NOT NULL) OR "
+            "(approval_assignee_type != 'role' AND approval_role_name IS NULL)",
+            name="ck_pipeline_tasks_approval_role_consistency",
+        ),
         CheckConstraint("revision > 0", name="ck_pipeline_tasks_revision_positive"),
         Index("ix_pipeline_tasks_owner_list", "organization_id", "user_id", "updated_at", "id"),
         Index(
@@ -1654,8 +1666,16 @@ class PipelineTask(Base, TimestampMixin):
     output_format: Mapped[str] = mapped_column(String(20), default="markdown")
     status: Mapped[str] = mapped_column(String(20), default="ready", index=True)
     revision: Mapped[int] = mapped_column(Integer, default=1, server_default="1")
+    approval_required: Mapped[bool] = mapped_column(Boolean, default=True, server_default=sa_true())
+    approval_assignee_type: Mapped[str] = mapped_column(String(20), default="creator", server_default="creator")
+    approval_assignee_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="RESTRICT"), nullable=True, index=True)
+    approval_role_name: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    approval_reminder_after_minutes: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    approval_escalation_after_minutes: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    approval_escalation_role_name: Mapped[str | None] = mapped_column(String(50), nullable=True)
     creation_key: Mapped[str | None] = mapped_column(String(160), nullable=True)
     next_run_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, index=True)
+    hermes_cron_job_id: Mapped[str | None] = mapped_column(String(120), nullable=True, unique=True, index=True)
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, index=True)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
@@ -1678,6 +1698,7 @@ class PipelineRun(Base, TimestampMixin):
     trigger_kind: Mapped[str] = mapped_column(String(20), default="manual")
     status: Mapped[str] = mapped_column(String(20), default="queued", index=True)
     idempotency_key: Mapped[str | None] = mapped_column(String(160), nullable=True)
+    prompt_override: Mapped[str | None] = mapped_column(Text, nullable=True)
     scheduled_for: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, index=True)
     attempt: Mapped[int] = mapped_column(Integer, default=0)
     lease_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, index=True)
@@ -1710,7 +1731,9 @@ class DashboardDecision(Base, TimestampMixin):
     __tablename__ = "dashboard_decisions"
     __table_args__ = (
         CheckConstraint("status IN ('pending', 'approved', 'rejected', 'changes_requested', 'regenerating', 'superseded')", name="ck_dashboard_decisions_status"),
+        CheckConstraint("reason_type IS NULL OR reason_type IN ('no_need', 'other', 'regenerate')", name="ck_dashboard_decisions_reason_type"),
         Index("ix_dashboard_decisions_owner", "organization_id", "user_id", "status", "created_at", "id"),
+        Index("ix_dashboard_decisions_pending_reminders", "status", "created_at", "id"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -1727,6 +1750,13 @@ class DashboardDecision(Base, TimestampMixin):
     title: Mapped[str] = mapped_column(String(255))
     summary: Mapped[str] = mapped_column(Text)
     change_request: Mapped[str | None] = mapped_column(Text, nullable=True)
+    approver_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
+    approval_comment: Mapped[str | None] = mapped_column(Text, nullable=True)
+    rejection_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    reason_type: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, index=True)
+    reminder_sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    escalation_sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
 class DecisionAction(Base, TimestampMixin):
