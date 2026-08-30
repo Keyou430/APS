@@ -136,7 +136,9 @@ attempt=1
 while ! runner env "DOCKER_HOST=$docker_host" docker info >/dev/null 2>&1; do
   if [ "$attempt" -ge 20 ]; then
     runner systemctl --user status docker.service --no-pager -l || true
-    runner journalctl --user -u docker.service -n 80 --no-pager -o cat || true
+    runner journalctl --user -u docker.service -n 240 --no-pager -o cat 2>/dev/null \
+      | grep -Ei 'level=(error|fatal)|panic|failed|permission denied|operation not permitted|invalid argument|cannot|unable' \
+      | tail -80 || true
     fail rootless-docker-readiness
   fi
   attempt=$((attempt + 1))
