@@ -117,7 +117,7 @@ Type=notify
 Environment=PATH=/usr/local/bin:/usr/bin:/bin
 Environment=DOCKERD_ROOTLESS_ROOTLESSKIT_NET=slirp4netns
 Environment=DOCKERD_ROOTLESS_ROOTLESSKIT_PORT_DRIVER=none
-ExecStart=/usr/bin/rootlesskit --net=slirp4netns --mtu=65520 --copy-up=/etc --copy-up=/run --propagation=rslave /usr/bin/dockerd --host=unix://%t/docker.sock --data-root=%h/.local/share/docker --exec-root=%t/docker --pidfile=%t/docker.pid
+ExecStart=/usr/bin/rootlesskit --net=slirp4netns --mtu=65520 --copy-up=/etc --copy-up=/run --propagation=rslave /usr/bin/dockerd --host=unix://%t/docker.sock --data-root=%h/.local/share/docker --exec-root=%t/docker --pidfile=%t/docker.pid --storage-driver=vfs
 ExecReload=/bin/kill -s HUP \$MAINPID
 Restart=on-failure
 RestartSec=3
