@@ -45,6 +45,14 @@ if ! command -v docker >/dev/null 2>&1; then
     docker-ce docker-ce-cli containerd.io docker-buildx-plugin \
     docker-compose-plugin docker-ce-rootless-extras
 fi
+# Ubuntu noble-updates Docker 29.1.3 currently panics during rootless startup;
+# use the stable noble base version until that package is fixed.
+if docker --version 2>/dev/null | grep -q 'Docker version 29\.1\.3'; then
+  apt-get install -y --allow-downgrades \
+    docker.io=24.0.7-0ubuntu4 \
+    containerd=1.7.12-0ubuntu4 \
+    runc=1.1.12-0ubuntu3
+fi
 systemctl unmask docker.service docker.socket containerd.service >/dev/null 2>&1 || true
 systemctl enable --now containerd.service docker.service ssh.service
 test -S /var/run/docker.sock || fail standard-docker-socket
