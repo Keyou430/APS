@@ -22,9 +22,10 @@ export DEBIAN_FRONTEND=noninteractive
 apt-get update
 apt-get install -y --no-install-recommends \
   ca-certificates curl gnupg openssh-server openssl python3 python3-yaml \
-  uidmap dbus-user-session slirp4netns fuse-overlayfs jq
+  uidmap dbus-user-session slirp4netns fuse-overlayfs rootlesskit jq
 
-if ! apt-cache show docker-ce-rootless-extras >/dev/null 2>&1; then
+if ! command -v docker >/dev/null 2>&1; then
+  if ! apt-cache show docker-ce-rootless-extras >/dev/null 2>&1; then
   install -m 0755 -d /etc/apt/keyrings
   docker_key=$(mktemp)
   trap 'rm -f "$docker_key"' EXIT
@@ -38,11 +39,12 @@ if ! apt-cache show docker-ce-rootless-extras >/dev/null 2>&1; then
   apt-get update
   rm -f "$docker_key"
   trap - EXIT
-fi
+  fi
 
-apt-get install -y --no-install-recommends \
-  docker-ce docker-ce-cli containerd.io docker-buildx-plugin \
-  docker-compose-plugin docker-ce-rootless-extras
+  apt-get install -y --no-install-recommends \
+    docker-ce docker-ce-cli containerd.io docker-buildx-plugin \
+    docker-compose-plugin docker-ce-rootless-extras
+fi
 systemctl unmask docker.service docker.socket containerd.service >/dev/null 2>&1 || true
 systemctl enable --now containerd.service docker.service ssh.service
 test -S /var/run/docker.sock || fail standard-docker-socket
@@ -88,7 +90,6 @@ runner() {
     PATH=/usr/local/bin:/usr/bin:/bin "$@"
 }
 
-runner dockerd-rootless-setuptool.sh install --force
 install -d -o "$RUNNER_USER" -g "$RUNNER_USER" -m 0700 "$runner_home/.config/docker"
 install -m 0600 /dev/null "$runner_home/.config/docker/daemon.json"
 printf '%s\n' \
@@ -98,6 +99,36 @@ printf '%s\n' \
   '  "live-restore": false' \
   '}' > "$runner_home/.config/docker/daemon.json"
 chown "$RUNNER_USER:$RUNNER_USER" "$runner_home/.config/docker/daemon.json"
+if command -v dockerd-rootless-setuptool.sh >/dev/null 2>&1; then
+  runner dockerd-rootless-setuptool.sh install --force
+else
+  command -v rootlesskit >/dev/null 2>&1 || fail rootlesskit-missing
+  install -d -o "$RUNNER_USER" -g "$RUNNER_USER" -m 0700 \
+    "$runner_home/.config/systemd/user"
+  install -o "$RUNNER_USER" -g "$RUNNER_USER" -m 0644 /dev/null \
+    "$runner_home/.config/systemd/user/docker.service"
+  cat > "$runner_home/.config/systemd/user/docker.service" <<EOF
+[Unit]
+Description=Rootless Docker
+After=network.target
+
+[Service]
+Type=notify
+Environment=PATH=/usr/local/bin:/usr/bin:/bin
+Environment=DOCKERD_ROOTLESS_ROOTLESSKIT_NET=slirp4netns
+Environment=DOCKERD_ROOTLESS_ROOTLESSKIT_PORT_DRIVER=none
+ExecStart=/usr/bin/rootlesskit --net=slirp4netns --mtu=65520 --copy-up=/etc --copy-up=/run --propagation=rslave /usr/bin/dockerd --host=unix://%t/docker.sock --data-root=%h/.local/share/docker --exec-root=%t/docker --pidfile=%t/docker.pid --storage-driver=fuse-overlayfs
+ExecReload=/bin/kill -s HUP \$MAINPID
+Restart=on-failure
+RestartSec=3
+LimitNOFILE=1048576
+Delegate=yes
+
+[Install]
+WantedBy=default.target
+EOF
+  chown "$RUNNER_USER:$RUNNER_USER" "$runner_home/.config/systemd/user/docker.service"
+fi
 runner systemctl --user daemon-reload
 runner systemctl --user enable --now docker.service
 
