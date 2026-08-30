@@ -134,7 +134,11 @@ runner systemctl --user enable --now docker.service
 
 attempt=1
 while ! runner env "DOCKER_HOST=$docker_host" docker info >/dev/null 2>&1; do
-  [ "$attempt" -lt 20 ] || fail rootless-docker-readiness
+  if [ "$attempt" -ge 20 ]; then
+    runner systemctl --user status docker.service --no-pager -l || true
+    runner journalctl --user -u docker.service -n 80 --no-pager -o cat || true
+    fail rootless-docker-readiness
+  fi
   attempt=$((attempt + 1))
   sleep 1
 done
