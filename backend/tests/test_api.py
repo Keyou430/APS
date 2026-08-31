@@ -1,4 +1,5 @@
 from datetime import UTC, datetime, timedelta
+from uuid import uuid4
 
 import asyncio
 from types import SimpleNamespace
@@ -182,12 +183,14 @@ async def test_admin_user_crud_rbac_and_profile(client: AsyncClient, admin_heade
             "username": "regular-user",
             "password": "regular-password",
             "email": "regular@example.com",
+            "display_name": "李明",
             "role": "user",
         },
     )
     assert created.status_code == 201, created.text
     user = created.json()
     assert user["role"] == "user"
+    assert user["display_name"] == "李明"
     invalid_username = await client.post(
         "/api/users",
         headers=admin_headers,
@@ -226,6 +229,13 @@ async def test_admin_user_crud_rbac_and_profile(client: AsyncClient, admin_heade
     )
     assert assigned.status_code == 200
     assert assigned.json()["role"] == "manager"
+    renamed = await client.put(
+        f"/api/users/{user['id']}",
+        headers=admin_headers,
+        json={"display_name": "  王芳  "},
+    )
+    assert renamed.status_code == 200
+    assert renamed.json()["display_name"] == "王芳"
 
 
 @pytest.mark.asyncio
@@ -290,6 +300,51 @@ async def test_chat_router_passes_server_owned_hermes_context(
     assert recorder.context.organization_id == "1"
     assert recorder.context.session_id == session.json()["hermes_session_id"]
     assert recorder.context.correlation_id
+
+
+@pytest.mark.asyncio
+async def test_chat_router_passes_existing_session_history_to_next_run(
+    client: AsyncClient,
+    admin_headers: dict[str, str],
+    monkeypatch: pytest.MonkeyPatch,
+):
+    history = [
+        {"id": "user-1", "role": "user", "content": "我叫小明"},
+        {"id": "assistant-1", "role": "assistant", "content": "你好，小明。"},
+    ]
+
+    class RecordingHermesClient:
+        conversation_history = None
+
+        async def create_response(
+            self, content, session_id, *, conversation_history=None, **_kwargs
+        ):
+            self.conversation_history = conversation_history
+            return "history-run"
+
+        async def stream_events(self, run_id, session_id, prompt, *, context=None):
+            yield 'event: response.completed\ndata: {"run_id":"history-run","output":"小明"}\n\n'
+
+        async def get_session_messages(self, session_id, *, context=None):
+            return history
+
+    recorder = RecordingHermesClient()
+    monkeypatch.setattr(chat_router, "hermes_client", recorder)
+    session = await client.post(
+        "/api/chat/sessions", headers=admin_headers, json={"title": "History test"}
+    )
+
+    streamed = await client.post(
+        f"/api/chat/sessions/{session.json()['id']}/messages",
+        headers=admin_headers,
+        json={"content": "我叫什么？"},
+    )
+
+    assert streamed.status_code == 200
+    assert recorder.conversation_history == [
+        {"role": "user", "content": "我叫小明"},
+        {"role": "assistant", "content": "你好，小明。"},
+    ]
 
 
 @pytest.mark.asyncio
@@ -480,6 +535,157 @@ async def test_chat_session_admission_serializes_concurrent_run_creation(
     assert observed_create_calls == 1
     assert second_response is not None and second_response.status_code == 409
     assert first_response.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_chat_stop_waits_for_admission_cleanup_before_allowing_next_message(
+    client: AsyncClient,
+    admin_headers: dict[str, str],
+    monkeypatch: pytest.MonkeyPatch,
+):
+    create_entered = asyncio.Event()
+    release_create = asyncio.Event()
+    create_calls = 0
+
+    class BlockingHermesClient:
+        async def create_response(self, content, session_id, **_kwargs):
+            nonlocal create_calls
+            create_calls += 1
+            if create_calls == 1:
+                create_entered.set()
+                await release_create.wait()
+            return f"run-{create_calls}"
+
+        async def stream_events(self, run_id, session_id, prompt, **_kwargs):
+            yield (
+                "event: response.completed\n"
+                f'data: {{"run_id":"{run_id}","output":"done"}}\n\n'
+            )
+
+        async def get_session_messages(self, session_id, **_kwargs):
+            return []
+
+        async def stop_run(self, run_id, **_kwargs):
+            return {"run_id": run_id, "status": "stopping"}
+
+    monkeypatch.setattr(chat_router, "hermes_client", BlockingHermesClient())
+    monkeypatch.setattr(
+        chat_router.sandbox_runner_client,
+        "cleanup_task",
+        lambda _task_id: asyncio.sleep(0),
+    )
+    created = await client.post(
+        "/api/chat/sessions", headers=admin_headers, json={"title": "Admission stop wait"}
+    )
+    path = f"/api/chat/sessions/{created.json()['id']}"
+    first = asyncio.create_task(
+        client.post(f"{path}/messages", headers=admin_headers, json={"content": "first"})
+    )
+    await create_entered.wait()
+    stop = asyncio.create_task(
+        client.post(f"{path}/runs/active/stop", headers=admin_headers)
+    )
+
+    stop_status = None
+    for _ in range(20):
+        async with SessionLocal() as db:
+            current = await db.get(ChatSession, created.json()["id"])
+            stop_status = current.active_run_status
+        if stop_status == "stop_requested":
+            break
+        await asyncio.sleep(0.01)
+    assert stop_status == "stop_requested"
+    stop_returned_early = stop.done()
+    release_create.set()
+    first_response = await first
+    stop_response = await stop
+    second_response = await client.post(
+        f"{path}/messages", headers=admin_headers, json={"content": "second"}
+    )
+
+    assert not stop_returned_early, "stop returned before the admitting request released its run"
+    assert first_response.status_code == 409
+    assert stop_response.status_code == 200
+    assert second_response.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_chat_stop_serializes_admission_marker_update_with_run_promotion(
+    client: AsyncClient,
+    admin_headers: dict[str, str],
+    monkeypatch: pytest.MonkeyPatch,
+):
+    create_entered = asyncio.Event()
+    release_create = asyncio.Event()
+    stop_marked = asyncio.Event()
+    release_stop_write = asyncio.Event()
+    release_stream = asyncio.Event()
+    race_run_id = f"run-stop-promotion-race-{uuid4().hex}"
+    create_calls = 0
+
+    class BlockingHermesClient:
+        async def create_response(self, content, session_id, **_kwargs):
+            nonlocal create_calls
+            create_calls += 1
+            create_entered.set()
+            await release_create.wait()
+            return race_run_id if create_calls == 1 else f"{race_run_id}-{create_calls}"
+
+        async def stream_events(self, run_id, session_id, prompt, **_kwargs):
+            if run_id == race_run_id:
+                await release_stream.wait()
+            yield (
+                "event: response.completed\n"
+                f'data: {{"run_id":"{run_id}","output":"done"}}\n\n'
+            )
+
+        async def get_session_messages(self, session_id, **_kwargs):
+            return []
+
+        async def stop_run(self, run_id, **_kwargs):
+            return {"run_id": run_id, "status": "stopping"}
+
+    original_record_audit = chat_router.record_audit
+
+    async def block_stop_audit(*args, **kwargs):
+        if kwargs.get("action") == "hermes.run.stop":
+            stop_marked.set()
+            await release_stop_write.wait()
+        return await original_record_audit(*args, **kwargs)
+
+    monkeypatch.setattr(chat_router, "hermes_client", BlockingHermesClient())
+    monkeypatch.setattr(chat_router, "record_audit", block_stop_audit)
+    monkeypatch.setattr(
+        chat_router.sandbox_runner_client,
+        "cleanup_task",
+        lambda _task_id: asyncio.sleep(0),
+    )
+    created = await client.post(
+        "/api/chat/sessions", headers=admin_headers, json={"title": "Stop promotion race"}
+    )
+    path = f"/api/chat/sessions/{created.json()['id']}"
+    first = asyncio.create_task(
+        client.post(f"{path}/messages", headers=admin_headers, json={"content": "first"})
+    )
+    await create_entered.wait()
+    stop = asyncio.create_task(
+        client.post(f"{path}/runs/active/stop", headers=admin_headers)
+    )
+    await stop_marked.wait()
+
+    release_create.set()
+    await asyncio.sleep(0.05)
+    release_stop_write.set()
+    stop_response = await stop
+    second_response = await client.post(
+        f"{path}/messages", headers=admin_headers, json={"content": "second"}
+    )
+    release_stream.set()
+    first_response = await first
+
+    assert first_response.status_code == 409
+    assert stop_response.status_code == 200
+    assert second_response.status_code == 200
 
 
 @pytest.mark.asyncio
@@ -716,6 +922,35 @@ async def test_chat_run_stop_is_owned_audited_and_forces_cleanup(
         )
         assert audit is not None
         assert audit.organization_id == session.organization_id
+
+
+@pytest.mark.asyncio
+async def test_chat_active_stop_cancels_run_during_admission(
+    client: AsyncClient,
+    admin_headers: dict[str, str],
+):
+    created = await client.post(
+        "/api/chat/sessions", headers=admin_headers, json={"title": "Admission stop"}
+    )
+    session_id = created.json()["id"]
+    admission_id = "admitting-test-run"
+    async with SessionLocal() as db:
+        session = await db.get(ChatSession, session_id)
+        session.active_hermes_run_id = admission_id
+        session.active_run_status = "admitting"
+        await db.commit()
+
+    stopped = await client.post(
+        f"/api/chat/sessions/{session_id}/runs/active/stop",
+        headers=admin_headers,
+    )
+
+    assert stopped.status_code == 200, stopped.text
+    assert stopped.json() == {"run_id": admission_id, "status": "stopped"}
+    async with SessionLocal() as db:
+        session = await db.get(ChatSession, session_id)
+        assert session.active_hermes_run_id is None
+        assert session.active_run_status == "stopped"
 
 
 @pytest.mark.asyncio

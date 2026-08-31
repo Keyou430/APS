@@ -12,6 +12,7 @@ from app.models import (
     PipelineTask,
 )
 from app.services.pipeline_executor import (
+    HermesPipelineExecutor,
     PipelineExecutionResult,
     claim_pipeline_runs,
     recover_stale_pipeline_runs,
@@ -21,6 +22,112 @@ from app.services.pipeline_executor import (
 from app.services.web_evidence import WebEvidence
 
 pytestmark = pytest.mark.asyncio
+
+
+async def test_general_feishu_pipeline_uses_the_known_readonly_lark_shortcut() -> None:
+    captured_prompt = ""
+
+    class CapturingClient:
+        async def create_openai_response(self, prompt: str, *, context) -> dict:
+            nonlocal captured_prompt
+            captured_prompt = prompt
+            return {
+                "output": [
+                    {
+                        "type": "message",
+                        "content": [
+                            {
+                                "type": "output_text",
+                                "text": (
+                                    '{"title":"飞书待办","markdown":"# 摘要",'
+                                    '"summary":"完成","sources":[]}'
+                                ),
+                            }
+                        ],
+                    }
+                ]
+            }
+
+    class CapturingRouter:
+        def client_for(self, backend: str) -> CapturingClient:
+            assert backend == "agent"
+            return CapturingClient()
+
+    task = PipelineTask(
+        id=99,
+        organization_id=1,
+        user_id=1,
+        title="飞书待办摘要",
+        prompt="每天读取我的飞书待办并生成摘要",
+        task_type="general",
+        schedule="0 9 * * *",
+        timezone="Asia/Shanghai",
+        input_sources=[],
+        output_format="markdown",
+        status="ready",
+    )
+
+    result = await HermesPipelineExecutor(CapturingRouter()).execute(task)
+
+    assert result.sources == []
+    assert 'lark_cli_execute exactly with argv ["task", "+get-my-tasks"]' in captured_prompt
+    assert "Do not call lark_cli_schema or lark_cli_help" in captured_prompt
+    assert "sources must be an empty array" in captured_prompt
+
+
+async def test_feishu_weekly_task_report_uses_all_tasks_in_current_week() -> None:
+    captured_prompt = ""
+
+    class CapturingClient:
+        async def create_openai_response(self, prompt: str, *, context) -> dict:
+            nonlocal captured_prompt
+            captured_prompt = prompt
+            return {
+                "output": [
+                    {
+                        "type": "message",
+                        "content": [
+                            {
+                                "type": "output_text",
+                                "text": '{"title":"任务周报","markdown":"# 周报",'
+                                '"summary":"完成","sources":[]}',
+                            }
+                        ],
+                    }
+                ]
+            }
+
+    class CapturingRouter:
+        def client_for(self, backend: str) -> CapturingClient:
+            assert backend == "agent"
+            return CapturingClient()
+
+    task = PipelineTask(
+        id=100,
+        organization_id=1,
+        user_id=1,
+        title="飞书任务周报",
+        prompt="读取本周飞书任务并生成任务周报",
+        task_type="general",
+        schedule="0 18 * * 5",
+        timezone="Asia/Shanghai",
+        input_sources=[],
+        output_format="markdown",
+        status="ready",
+    )
+
+    class FixedClockExecutor(HermesPipelineExecutor):
+        def __init__(self, router):
+            super().__init__(router, now_provider=lambda: datetime(2026, 8, 28, 10, tzinfo=UTC))
+
+    result = await FixedClockExecutor(CapturingRouter()).execute(task)
+
+    assert result.sources == []
+    assert 'lark_cli_execute exactly with argv ["task", "+get-my-tasks", "--created_at", "2026-08-24", "--page-all"]' in captured_prompt
+    assert "2026-08-24 00:00:00" in captured_prompt
+    assert "2026-08-30 23:59:59" in captured_prompt
+    assert "both completed and incomplete" in captured_prompt
+    assert "Do not pass --complete=false" in captured_prompt
 
 
 def _evidence(url: str, correlation_id: str) -> WebEvidence:
@@ -182,6 +289,75 @@ async def test_pipeline_cycle_persists_markdown_sources_and_pending_decision() -
         assert output.sources[0]["provider"] == "exa"
         assert output.sources[0]["correlation_id"] == correlation_id
         assert decision is not None and decision.status == "pending"
+
+
+async def test_pipeline_cycle_skips_decision_when_task_approval_is_disabled() -> None:
+    run_id = await _queued_run()
+    async with SessionLocal() as db:
+        run = await db.get(PipelineRun, run_id)
+        assert run is not None
+        task = await db.get(PipelineTask, run.task_id)
+        assert task is not None
+        task.task_type = "general"
+        task.input_sources = []
+        task.approval_required = False
+        await db.commit()
+
+    correlation_id = f"pipeline-no-approval-{run_id}"
+
+    class FakeExecutor:
+        async def execute(self, task: PipelineTask) -> PipelineExecutionResult:
+            return PipelineExecutionResult(
+                title=task.title,
+                markdown="# Direct output",
+                sources=[],
+                summary="Direct output",
+                correlation_id=correlation_id,
+            )
+
+    await run_pipeline_cycle(
+        SessionLocal, executor=FakeExecutor(), worker_id="worker-no-approval", limit=1
+    )
+    async with SessionLocal() as db:
+        output = await db.scalar(select(PipelineOutput).where(PipelineOutput.run_id == run_id))
+        decision = await db.scalar(
+            select(DashboardDecision).where(DashboardDecision.run_id == run_id)
+        )
+    assert output is not None
+    assert decision is None
+
+
+async def test_scheduled_pipeline_cycle_creates_decision_when_approval_is_disabled() -> None:
+    run_id = await _queued_run()
+    async with SessionLocal() as db:
+        run = await db.get(PipelineRun, run_id)
+        assert run is not None
+        run.trigger_kind = "scheduled"
+        task = await db.get(PipelineTask, run.task_id)
+        assert task is not None
+        task.task_type = "general"
+        task.input_sources = []
+        task.approval_required = False
+        await db.commit()
+
+    class FakeExecutor:
+        async def execute(self, task: PipelineTask) -> PipelineExecutionResult:
+            return PipelineExecutionResult(
+                title=task.title,
+                markdown="# Scheduled output",
+                sources=[],
+                summary="Scheduled output",
+                correlation_id=f"scheduled-{task.id}",
+            )
+
+    await run_pipeline_cycle(
+        SessionLocal, executor=FakeExecutor(), worker_id="worker-scheduled", limit=1
+    )
+    async with SessionLocal() as db:
+        decision = await db.scalar(
+            select(DashboardDecision).where(DashboardDecision.run_id == run_id)
+        )
+    assert decision is not None and decision.status == "pending"
 
 
 async def test_web_research_without_sources_fails_closed() -> None:

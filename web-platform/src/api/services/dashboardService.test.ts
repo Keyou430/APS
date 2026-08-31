@@ -68,7 +68,9 @@ describe("dashboard service", () => {
     const service = createDashboardService(client);
 
     await service.listDecisions({ limit: 5, status: "pending" });
-    await service.approveDecision("decision-1");
+    await service.approveDecision("decision-1", {
+      comment: "已核对来源，可以归档",
+    });
     await service.rejectDecision("decision-1", {
       reason: "数据口径需要按华东区单独分析",
       reason_type: "regenerate",
@@ -85,6 +87,7 @@ describe("dashboard service", () => {
       {
         method: "POST",
         headers: { "Idempotency-Key": expect.any(String) },
+        body: { comment: "已核对来源，可以归档" },
       },
     );
     expect(request).toHaveBeenNthCalledWith(

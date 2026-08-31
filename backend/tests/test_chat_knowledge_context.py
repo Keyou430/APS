@@ -60,6 +60,27 @@ def test_chat_context_contains_only_authorized_citations() -> None:
     assert "never invent" in context.instructions
     assert "飞书和钉钉是两个独立渠道" in context.instructions
     assert "live search is unavailable" in context.instructions
+    assert "当前用户未设置可靠显示名，称呼用户为“你”" in context.instructions
+
+
+def test_chat_context_uses_only_explicit_display_name() -> None:
+    named = build_chat_context(
+        question="你好",
+        citations=[],
+        user_display_name="李明",
+        fixed_contexts=[(ROLE_CONTEXT.title, ROLE_CONTEXT.content)],
+    )
+    assert "当前用户显示名（仅用于称呼）：李明" in named.instructions
+    assert "周敏" not in named.instructions
+
+    unnamed = build_chat_context(
+        question="你好",
+        citations=[],
+        user_display_name=None,
+        fixed_contexts=[(ROLE_CONTEXT.title, ROLE_CONTEXT.content)],
+    )
+    assert "称呼用户为“你”" in unnamed.instructions
+    assert "周敏" not in unnamed.instructions
 
 
 def test_client_message_id_accepts_only_stable_safe_identifiers() -> None:

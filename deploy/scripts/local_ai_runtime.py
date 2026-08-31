@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import shutil
 import subprocess
 import sys
 import time
@@ -14,7 +15,12 @@ from pathlib import Path
 from typing import IO
 
 APPROVED_ENV_KEYS = frozenset(
-    {"DEEPSEEK_API_KEY", "DEEPSEEK_BASE_URL", "HERMES_API_SERVER_KEY"}
+    {
+        "DEEPSEEK_API_KEY",
+        "DEEPSEEK_BASE_URL",
+        "HERMES_API_SERVER_KEY",
+        "HERMES_HTTP_TIMEOUT_SECONDS",
+    }
 )
 REQUIRED_SECRET_KEYS = ("DEEPSEEK_API_KEY", "HERMES_API_SERVER_KEY")
 PLACEHOLDER_PREFIXES = ("change-this", "replace-with", "your-")
@@ -29,8 +35,8 @@ class ServiceSpec:
     name: str
     command: tuple[str, ...]
     cwd: Path
-    port: int
-    health_url: str
+    port: int | None
+    health_url: str | None
     environment: dict[str, str] = field(repr=False)
     process_markers: tuple[str, ...]
 
@@ -128,10 +134,14 @@ def build_service_specs(
             "HERMES_API_KEY": secrets["HERMES_API_SERVER_KEY"],
             "HERMES_API_URL": "http://127.0.0.1:8642",
             "HERMES_KNOWLEDGE_API_URL": "http://127.0.0.1:8643",
+            "HERMES_HTTP_TIMEOUT_SECONDS": secrets.get(
+                "HERMES_HTTP_TIMEOUT_SECONDS", "180"
+            ),
             "HERMES_USE_HTTP": "true",
             "PYTHONUTF8": "1",
         }
     )
+    worker_environment = backend_environment.copy()
 
     frontend_environment = _base_environment()
 
@@ -179,6 +189,35 @@ def build_service_specs(
             health_url="http://127.0.0.1:8000/health",
             environment=backend_environment,
             process_markers=("python.exe", "uvicorn", "main:app", "8000"),
+        ),
+        "pipeline-worker": ServiceSpec(
+            name="pipeline-worker",
+            command=(
+                str(backend_home / ".venv" / "Scripts" / "python.exe"),
+                "-m",
+                "app.workers.pipeline_worker",
+            ),
+            cwd=backend_home,
+            port=None,
+            health_url=None,
+            environment=worker_environment,
+            process_markers=("python.exe", "app.workers.pipeline_worker"),
+        ),
+        "pipeline-approval-worker": ServiceSpec(
+            name="pipeline-approval-worker",
+            command=(
+                str(backend_home / ".venv" / "Scripts" / "python.exe"),
+                "-m",
+                "app.workers.pipeline_approval_worker",
+            ),
+            cwd=backend_home,
+            port=None,
+            health_url=None,
+            environment=worker_environment.copy(),
+            process_markers=(
+                "python.exe",
+                "app.workers.pipeline_approval_worker",
+            ),
         ),
         "frontend": ServiceSpec(
             name="frontend",
@@ -283,7 +322,7 @@ def start_services(
     health_timeout: float = 45.0,
 ) -> dict[str, int]:
     for spec in specs.values():
-        if listener_lookup(spec.port) is not None:
+        if spec.port is not None and listener_lookup(spec.port) is not None:
             raise RuntimeConfigurationError(
                 f"port {spec.port} is already in use; no services were started"
             )
@@ -304,11 +343,11 @@ def start_services(
             (runtime_dir / f"{name}.pid").write_text(str(pid), encoding="ascii")
             created.append((name, pid))
 
-            if not _wait_until_healthy(
-                spec.health_url,
-                timeout=health_timeout,
-                health_probe=health_probe,
-            ):
+            if spec.health_url is not None and not _wait_until_healthy(
+                    spec.health_url,
+                    timeout=health_timeout,
+                    health_probe=health_probe,
+                ):
                 raise RuntimeConfigurationError(f"{name} did not become healthy")
     except Exception:
         for name, pid in reversed(created):
@@ -403,8 +442,8 @@ def stop_service(
 def service_status(
     name: str,
     *,
-    port: int,
-    health_url: str,
+    port: int | None,
+    health_url: str | None,
     markers: tuple[str, ...],
     runtime_dir: Path,
     process_command: Callable[[int], str | None] = get_process_command,
@@ -423,7 +462,11 @@ def service_status(
         pid_path.unlink(missing_ok=True)
         return ServiceState(name=name, pid=pid, state="stale")
 
-    state = "healthy" if health_probe(health_url, 2.0) else "unhealthy"
+    state = (
+        "healthy"
+        if health_url is None or health_probe(health_url, 2.0)
+        else "unhealthy"
+    )
     return ServiceState(name=name, pid=pid, state=state)
 
 
@@ -458,6 +501,123 @@ def run_preparation_command(
         env=dict(environment),
         check=True,
     )
+
+
+def resolve_lark_cli_path() -> str:
+    """Resolve the npm launcher to lark-cli's native executable on Windows."""
+
+    configured = shutil.which("lark-cli") or shutil.which("lark-cli.cmd")
+    if not configured:
+        return "lark-cli"
+    resolved = Path(configured)
+    if resolved.suffix.casefold() == ".exe":
+        return str(resolved)
+    native = resolved.parent / "node_modules" / "@larksuite" / "cli" / "bin" / "lark-cli.exe"
+    return str(native) if native.is_file() else str(resolved)
+
+
+def verify_lark_cli_integration(
+    project_root: Path,
+    *,
+    runner: Callable[..., object] = subprocess.run,
+    timeout_seconds: float = 60.0,
+) -> None:
+    """Fail startup unless auth, MCP registration, and IM access all work."""
+
+    project_root = project_root.resolve()
+    hermes_home = project_root / "hermes"
+    hermes = hermes_home / "hermes.exe"
+    lark_cli = resolve_lark_cli_path()
+    environment = _dependency_environment()
+    environment["HERMES_HOME"] = str(hermes_home)
+    checks = (
+        (
+            (lark_cli, "auth", "status", "--json", "--verify"),
+            project_root,
+            "lark-cli user authorization",
+        ),
+        (
+            (str(hermes), "mcp", "test", "hermes-lark-cli"),
+            hermes_home,
+            "Hermes hermes-lark-cli MCP registration",
+        ),
+        (
+            (lark_cli, "im", "+chat-list", "--as", "user", "--format", "json"),
+            project_root,
+            "Feishu group chat access",
+        ),
+    )
+
+    for command, cwd, description in checks:
+        try:
+            result = runner(
+                tuple(command),
+                cwd=cwd,
+                env=dict(environment),
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=timeout_seconds,
+                check=False,
+            )
+        except Exception:  # noqa: BLE001
+            raise RuntimeConfigurationError(f"{description} check failed") from None
+
+        return_code = getattr(result, "returncode", 1)
+        stdout = getattr(result, "stdout", "") or ""
+        if return_code != 0:
+            raise RuntimeConfigurationError(f"{description} check failed")
+
+        if command[1:3] == ("auth", "status"):
+            try:
+                payload = json.loads(stdout)
+            except (TypeError, json.JSONDecodeError):
+                raise RuntimeConfigurationError(
+                    "lark-cli user authorization check returned invalid JSON"
+                ) from None
+            identities = payload.get("identities") if isinstance(payload, dict) else None
+            user_identity = (
+                identities.get("user", {})
+                if isinstance(identities, dict)
+                else {}
+            )
+            if not isinstance(user_identity, dict):
+                user_identity = {}
+            if (
+                not isinstance(payload, dict)
+                or payload.get("verified") is not True
+                or user_identity.get("verified") is not True
+                or user_identity.get("tokenStatus") != "valid"
+            ):
+                raise RuntimeConfigurationError(
+                    "lark-cli user authorization is not valid"
+                )
+        elif command[1:3] == ("mcp", "test"):
+            required_tools = (
+                "lark_cli_help",
+                "lark_cli_schema",
+                "lark_cli_execute",
+            )
+            if "Connected" not in stdout or any(tool not in stdout for tool in required_tools):
+                raise RuntimeConfigurationError(
+                    "Hermes hermes-lark-cli MCP registration is incomplete"
+                )
+        else:
+            try:
+                payload = json.loads(stdout)
+            except (TypeError, json.JSONDecodeError):
+                raise RuntimeConfigurationError(
+                    "Feishu group chat access check returned invalid JSON"
+                ) from None
+            if (
+                not isinstance(payload, dict)
+                or payload.get("ok") is not True
+                or not isinstance(payload.get("data"), (dict, list))
+            ):
+                raise RuntimeConfigurationError(
+                    "Feishu group chat access check returned an invalid response"
+                )
 
 
 def prepare_local_dependencies(
@@ -552,6 +712,7 @@ def main(argv: list[str] | None = None) -> int:
         if args.command == "start":
             secrets = load_runtime_secrets(project_root / "deploy" / ".env")
             prepare_local_dependencies(project_root)
+            verify_lark_cli_integration(project_root)
             specs = build_service_specs(project_root, secrets)
             start_services(specs, runtime_dir=runtime_dir)
             statuses = _all_statuses(specs, runtime_dir)

@@ -117,7 +117,7 @@
               <button class="side-link" data-view-link="feishu"><span>飞书</span></button>
               <button class="side-link" data-view-link="dingtalk"><span>钉钉</span></button>
               <div id="customWebsiteMenu"></div>
-              <button class="side-link" id="customWebsiteAdd" type="button"><span>添加自定义网站</span></button>
+              <button class="side-link custom-website-add" id="customWebsiteAdd" type="button" aria-label="添加自定义网站" title="添加自定义网站"><svg class="icon" aria-hidden="true"><use href="#i-plus"/></svg></button>
             </div>
           </div>
           <div class="nav-item" data-nav="admin" id="navAdmin" hidden>
@@ -193,6 +193,7 @@
           <article class="card cockpit-decision-card" id="cockpit-decisions">
             <div class="card-header">
               <div class="card-title">智能决策</div>
+              <div class="section-header-actions" id="cockpitDecisionHeaderActions"></div>
             </div>
             <div class="tabs cockpit-decision-filters">
               <button class="tab active" data-decision-filter="all" type="button">全部</button>
@@ -374,7 +375,7 @@
                   <option value="chat">纯对话</option>
                 </select>
                 <div class="toolbar-spacer"></div>
-                <button class="send-btn-circle" id="chatSendBtn" disabled title="发送">
+                <button class="send-btn-circle" id="chatSendBtn" disabled title="发送" aria-label="发送">
                   <svg class="icon send-arrow"><use href="#i-arrow-up"/></svg>
                   <span class="btn-spinner"></span>
                 </button>

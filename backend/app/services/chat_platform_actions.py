@@ -47,6 +47,8 @@ class PlatformActionResult:
     task_id: int | None = None
     run_id: int | None = None
     title: str | None = None
+    draft: dict[str, object] | None = None
+    run_now: bool = False
 
     def as_event(self) -> dict[str, object]:
         return {
@@ -56,13 +58,16 @@ class PlatformActionResult:
             "task_id": self.task_id,
             "run_id": self.run_id,
             "title": self.title,
+            "draft": self.draft,
+            "run_now": self.run_now,
         }
 
     def as_instruction(self) -> str:
         return (
             "PLATFORM_ACTION_RESULT (authoritative; do not contradict it): "
             f"pipeline task status={self.status}; task_id={self.task_id}; "
-            f"run_id={self.run_id}; message={self.message}"
+            f"run_id={self.run_id}; message={self.message}; draft={self.draft}; "
+            f"run_now={self.run_now}"
         )
 
 
@@ -84,7 +89,7 @@ def parse_scheduled_pipeline_command(prompt: str) -> ScheduledPipelineCommand | 
         )
     return ScheduledPipelineCommand(
         prompt=normalized,
-        status="ready",
+        status="draft",
         draft=draft,
         run_now=bool(_RUN_NOW_INTENT.search(normalized)),
     )
@@ -123,94 +128,21 @@ async def execute_scheduled_pipeline_command(
     executor: PipelineTaskExecutor | None,
     session_factory: async_sessionmaker[AsyncSession],
 ) -> PlatformActionResult:
-    if command.status != "ready" or command.draft is None:
+    if command.status != "draft" or command.draft is None:
         return schedule_required_action()
 
     draft = command.draft
-    try:
-        next_run_at = next_cron_run(draft.schedule, draft.timezone, after=datetime.now(UTC))
-    except (CronExpressionError, ValueError):
-        return PlatformActionResult(
-            status="invalid_schedule",
-            message="未创建任务：无法识别定时表达式。",
-        )
-
-    creation_key = f"chat-task-{session_id}-{request_id}"
-    task = await db.scalar(
-        select(PipelineTask).where(
-            PipelineTask.organization_id == organization_id,
-            PipelineTask.user_id == user_id,
-            PipelineTask.creation_key == creation_key,
-        )
+    del db, organization_id, user_id, membership, session_id, request_id, executor, session_factory
+    return PlatformActionResult(
+        status="draft",
+        message=(
+            "已生成定时任务草稿，请在确认页核对内容后创建。"
+            + (" 已记录立即执行意图，确认后可选择是否执行。" if command.run_now else "")
+        ),
+        title=draft.title,
+        draft=draft.model_dump(),
+        run_now=command.run_now,
     )
-    if task is None:
-        task = PipelineTask(
-            organization_id=organization_id,
-            user_id=user_id,
-            title=draft.title,
-            prompt=draft.prompt,
-            task_type=draft.task_type,
-            schedule=draft.schedule,
-            timezone=draft.timezone,
-            input_sources=draft.input_sources,
-            output_format=draft.output_format,
-            status="ready",
-            revision=1,
-            creation_key=creation_key,
-            next_run_at=next_run_at,
-        )
-        db.add(task)
-        try:
-            await db.flush()
-            await record_audit(
-                db,
-                membership,
-                action="chat.pipeline_task.create_and_run",
-                resource_type="pipeline_task",
-                resource_id=str(task.id),
-                details={
-                    "schedule": draft.schedule,
-                    "timezone": draft.timezone,
-                    "immediate_execution_requested": command.run_now,
-                    "chat_session_id": session_id,
-                },
-            )
-            await db.commit()
-        except IntegrityError:
-            await db.rollback()
-            task = await db.scalar(
-                select(PipelineTask).where(
-                    PipelineTask.organization_id == organization_id,
-                    PipelineTask.user_id == user_id,
-                    PipelineTask.creation_key == creation_key,
-                )
-            )
-            if task is None:
-                raise
-    await db.refresh(task)
-
-    if not command.run_now:
-        return PlatformActionResult(
-            status="scheduled",
-            message="已创建定时任务。",
-            task_id=task.id,
-            title=task.title,
-        )
-
-    repo = PipelineRepository(db, organization_id=organization_id, user_id=user_id)
-    run, _created = await repo.manual_run(
-        task,
-        idempotency_key=f"chat-run-{session_id}-{request_id}",
-    )
-    if run.status == "queued":
-        await run_pipeline_run_now(
-            session_factory,
-            executor=executor,
-            worker_id=f"chat-{session_id}-{request_id}",
-            run_id=run.id,
-        )
-    await db.refresh(run)
-    return _action_for_run(task, run)
 
 
 def _action_for_run(task: PipelineTask, run: PipelineRun) -> PlatformActionResult:

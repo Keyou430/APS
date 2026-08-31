@@ -135,6 +135,7 @@ def current_user_response(context: OrganizationContext) -> UserResponse:
         {
             "id": user.id,
             "username": user.username,
+            "display_name": user.display_name,
             "email": user.email,
             "role": context.role.name,
             "member_type": context.member_type,

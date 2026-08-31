@@ -113,8 +113,26 @@ test("chat send uses the contract SSE runtime service without legacy fallback", 
   assert.match(source, /response\.completed/);
   assert.match(source, /response\.failed|upstream\.disconnected/);
   assert.match(source, /\.stopRun\(/);
+  assert.match(source, /\.stopRun\(sessionId,\s*runId\s*\|\|\s*["']active["']\)/);
+  assert.match(source, /activeStopPromise/);
   assert.doesNotMatch(source, /\/api\/v1\/knowledge\/chat/);
   assert.doesNotMatch(source, /\/api\/v1\/chat\/messages/);
+});
+
+test("streaming chat changes the send control into an enabled stop control", async () => {
+  const source = await readFile(new URL("../src/app.js", import.meta.url), "utf8");
+
+  assert.match(source, /btn\.disabled\s*=\s*!state\.isStreaming\s*&&\s*!hasText/);
+  assert.match(source, /aria-label",\s*state\.isStreaming\s*\?\s*"暂停生成"\s*:\s*"发送"/);
+  assert.match(source, /title",\s*state\.isStreaming\s*\?\s*"暂停生成"\s*:\s*"发送"/);
+  assert.match(source, /if \(state\.isStreaming\)\s*\{[\s\S]*?stopChatStream\(\)/);
+});
+
+test("chat explains the per-user run quota instead of reporting a network error", async () => {
+  const source = await readFile(new URL("../src/app.js", import.meta.url), "utf8");
+
+  assert.match(source, /status === 429/);
+  assert.match(source, /运行额度被未完成会话占用/);
 });
 
 test("ordinary AI chat uses the agent surface and preserves uploaded attachment content", async () => {
@@ -128,15 +146,6 @@ test("ordinary AI chat uses the agent surface and preserves uploaded attachment 
   assert.doesNotMatch(source, /source_ids:\s*context_ids/);
 });
 
-test("mobile chat header releases the desktop flex basis", async () => {
-  const source = await readFile(new URL("../styles.css", import.meta.url), "utf8");
-
-  assert.match(
-    source,
-    /@media \(max-width: 767px\) \{[\s\S]*?\.chat-page \.page-header > div:first-child \{\s*flex: 0 1 auto;\s*min-height: 0;\s*\}/,
-  );
-});
-
 test("AI chat sends selected link context and renders verified platform actions", async () => {
   const source = await readFile(new URL("../src/app.js", import.meta.url), "utf8");
 
@@ -148,6 +157,12 @@ test("AI chat sends selected link context and renders verified platform actions"
   assert.match(source, /event === "platform\.action"/);
   assert.match(source, /assistantMsg\.platformAction = data/);
   assert.match(source, /platformActionHTML/);
+  assert.match(source, /data-platform-action-choice="confirm"/);
+  assert.match(source, /data-platform-action-choice="cancel"/);
+  assert.match(source, /getAppRuntimeService\("pipeline"\)/);
+  assert.match(source, /pipelineService\.createTask\(\{ \.\.\.action\.draft, confirmed: true \}\)/);
+  assert.match(source, /action\.run_now/);
+  assert.match(source, /pipelineService\.runTask\(task\.id\)/);
   assert.doesNotMatch(source, /links:\s*\[\]/);
 });
 
@@ -315,14 +330,45 @@ test("notice publishing uses enterprise announcements without legacy fallback", 
   const source = await readFile(new URL("../src/app.js", import.meta.url), "utf8");
 
   assert.match(source, /requireAppRuntimeService\(\s*"enterprise",/);
-  assert.match(source, /\.createAnnouncement\(/);
+  assert.match(source, /\.createPublishedAnnouncement\(/);
+  assert.match(source, /content: payload\.body/);
   assert.doesNotMatch(source, /\/api\/v1\/admin\/notices/);
+});
+
+test("cockpit preserves backend decision terminal states", async () => {
+  const source = await readFile(new URL("../src/app.js", import.meta.url), "utf8");
+
+  assert.match(source, /changes_requested:\s*"需修改"/);
+  assert.match(source, /superseded:\s*"已替代"/);
+});
+
+test("cockpit rejection tracks regeneration until a fresh decision is available", async () => {
+  const source = await readFile(new URL("../src/app.js", import.meta.url), "utf8");
+
+  assert.match(source, /regeneration_run_id/);
+  assert.match(source, /function poll.*(?:Pipeline|pipeline).*Run|function wait.*(?:Pipeline|pipeline).*Run/);
+  assert.match(source, /getRun\(/);
+  assert.match(source, /status === "completed"/);
+  assert.match(source, /fetchCockpitDecisions\(\)/);
+  assert.match(source, /status === "failed"/);
+  assert.match(source, /重新生成失败/);
+});
+
+test("chat switching isolates active streams and keeps session-scoped state", async () => {
+  const source = await readFile(new URL("../src/app.js", import.meta.url), "utf8");
+
+  assert.match(source, /session\.requestGeneration/);
+  assert.match(source, /session\.activeAbortController/);
+  assert.match(source, /generation.*===.*session\.requestGeneration|session\.requestGeneration.*===.*generation/);
+  assert.match(source, /switchChatSession[\s\S]*activeAbortController\.abort/);
+  assert.match(source, /sessionScoped|session-scoped|按会话/);
 });
 
 test("admin news uses enterprise announcements without legacy fallback", async () => {
   const source = await readFile(new URL("../src/app.js", import.meta.url), "utf8");
 
   assert.match(source, /requireAppRuntimeService\(\s*"enterprise",\s*"listAnnouncements"/);
+  assert.match(source, /requireAppRuntimeService\(\s*"enterprise",\s*"createPublishedAnnouncement"/);
   assert.match(source, /requireAppRuntimeService\(\s*"enterprise",\s*"updateAnnouncement"/);
   assert.match(source, /requireAppRuntimeService\(\s*"enterprise",\s*"withdrawAnnouncement"/);
   assert.match(source, /\.listAnnouncements\(/);

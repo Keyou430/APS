@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Annotated, Literal
 from zoneinfo import ZoneInfoNotFoundError
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Query, Response, status
+from fastapi import APIRouter, Body, Depends, Header, HTTPException, Query, Response, status
 from fastapi.responses import Response as FastAPIResponse
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
@@ -37,6 +37,7 @@ from app.schemas.pipeline import (
     PipelineTaskCreate,
     PipelineTaskListResponse,
     PipelineTaskResponse,
+    ApproveDecisionRequest,
     RejectDecisionRequest,
     RequestChangesRequest,
 )
@@ -45,6 +46,10 @@ from app.services.audit import record_audit
 from app.services.delivery_outbox_worker import enqueue_channel_delivery
 from app.services.memory_repository import create_manual_memory
 from app.services.pipeline_repository import PipelineRepository
+from app.services.pipeline_approval import (
+    require_authorized_approver,
+    validate_task_approval_policy,
+)
 from app.services.pipeline_scheduler import CronExpressionError, next_cron_run
 
 
@@ -101,8 +106,21 @@ def draft_from_prompt(prompt: str) -> PipelineDraftResponse:
         for term in ("搜索", "趋势", "最新动态", "最近的 ai", "recent ai", "search", "web")
     )
     is_ai_weekly = weekly_wednesday and ("ai" in prompt.casefold() or "人工智能" in prompt)
+    is_feishu_todo_digest = "飞书" in prompt and any(
+        term in prompt for term in ("待办", "任务")
+    ) and any(term in prompt for term in ("摘要", "总结", "汇总"))
     return PipelineDraftResponse(
-        title="AI 最新动态周报" if is_ai_weekly else "行业趋势日报" if web_research else prompt[:80],
+        title=(
+            "飞书待办每日摘要"
+            if is_feishu_todo_digest and schedule is not None and schedule.endswith("* * *")
+            else "飞书待办摘要"
+            if is_feishu_todo_digest
+            else "AI 最新动态周报"
+            if is_ai_weekly
+            else "行业趋势日报"
+            if web_research
+            else prompt[:80]
+        ),
         prompt=prompt,
         task_type="web_research" if web_research else "general",
         schedule=schedule,
@@ -145,6 +163,16 @@ async def create_task(
         if existing is not None:
             return task_response(existing, await repo.latest_output(existing.id))
     values = payload.model_dump(exclude={"confirmed"})
+    await validate_task_approval_policy(
+        db,
+        organization_id=context.organization_id,
+        owner_user_id=user.id,
+        approval_required=values["approval_required"],
+        assignee_type=values["approval_assignee_type"],
+        assignee_id=values["approval_assignee_id"],
+        role_name=values["approval_role_name"],
+        escalation_role_name=values["approval_escalation_role_name"],
+    )
     if values.get("schedule"):
         try:
             next_run_at = next_cron_run(
@@ -292,9 +320,10 @@ async def _enqueue_decision_feishu_deliveries(
     organization_id: int,
     user_id: int,
     decision_id: int,
-    decision_status: Literal["approved", "rejected"],
+    decision_status: Literal["approved", "changes_requested"],
+    payload: dict[str, object] | None = None,
 ) -> None:
-    """Feishu delivery rows for a decided notification, inside the decision
+    """Feishu delivery rows for a decision notification, inside the decision
     transaction. Idempotent per (decision, status, target); the consumer
     worker performs the external send later."""
     target_ids = (
@@ -321,8 +350,15 @@ async def _enqueue_decision_feishu_deliveries(
             organization_id=organization_id,
             delivery_target_id=target.id,
             event_type=f"pipeline.decision.{decision_status}",
-            payload={"decision_id": decision_id, "status": decision_status},
-            idempotency_key=f"decision-{decision_status}:{decision_id}:feishu:{target.id}",
+            payload={
+                "decision_id": decision_id,
+                "status": decision_status,
+                **(payload or {}),
+            },
+            idempotency_key=(
+                f"decision-{decision_status.replace('_', '-')}:"
+                f"{decision_id}:feishu:{target.id}"
+            ),
         )
 
 
@@ -405,13 +441,23 @@ async def approve_decision(
     db: DbSession,
     context: DecisionWriteContext,
     idempotency_key: Annotated[str, Header(alias="Idempotency-Key", min_length=1)],
+    payload: Annotated[ApproveDecisionRequest | None, Body()] = None,
 ) -> object:
     organization_id = context.organization_id
     user_id = context.user_id
     repo = repository(db, context)
     decision = await repo.decision(decision_id)
+    task = await db.scalar(
+        select(PipelineTask).where(
+            PipelineTask.id == decision.task_id,
+            PipelineTask.organization_id == context.organization_id,
+        )
+    )
+    if task is None:
+        raise HTTPException(status_code=404, detail="Pipeline task not found")
+    await require_authorized_approver(db, task=task, user_id=context.user_id)
     key = idempotency_key
-    action_payload: dict[str, object] = {}
+    action_payload: dict[str, object] = (payload or ApproveDecisionRequest()).model_dump()
     try:
         action_created = await record_decision_action(
             db,
@@ -427,7 +473,14 @@ async def approve_decision(
         if decision.status != "pending":
             raise HTTPException(status_code=409, detail="Decision is already terminal")
         if decision.status == "pending":
-            output = await repo.output(decision.output_id)
+            output = await db.scalar(
+                select(PipelineOutput).where(
+                    PipelineOutput.id == decision.output_id,
+                    PipelineOutput.organization_id == context.organization_id,
+                )
+            )
+            if output is None:
+                raise HTTPException(status_code=404, detail="Pipeline output not found")
             memory = await create_manual_memory(
                 db,
                 organization_id=context.organization_id,
@@ -466,6 +519,9 @@ async def approve_decision(
                 decision_status="approved",
             )
             decision.status = "approved"
+            decision.approver_user_id = context.user_id
+            decision.approval_comment = (payload.comment if payload is not None else None)
+            decision.decided_at = datetime.now(UTC)
             decision.revision += 1
         await db.commit()
     except IntegrityError:
@@ -492,12 +548,25 @@ async def request_changes(
     db: DbSession,
     context: DecisionWriteContext,
     idempotency_key: Annotated[str, Header(alias="Idempotency-Key", min_length=1)],
+    reason_type: str | None = None,
 ) -> object:
     organization_id = context.organization_id
     user_id = context.user_id
-    decision = await repository(db, context).decision(decision_id)
+    repo = repository(db, context)
+    decision = await repo.decision(decision_id)
+    task = await db.scalar(
+        select(PipelineTask).where(
+            PipelineTask.id == decision.task_id,
+            PipelineTask.organization_id == context.organization_id,
+        )
+    )
+    if task is None:
+        raise HTTPException(status_code=404, detail="Pipeline task not found")
+    await require_authorized_approver(db, task=task, user_id=context.user_id)
     key = idempotency_key
-    action_payload = {"reason": payload.reason}
+    action_payload: dict[str, object] = {"reason": payload.reason}
+    if reason_type is not None:
+        action_payload["reason_type"] = reason_type
     try:
         action_created = await record_decision_action(
             db,
@@ -522,13 +591,41 @@ async def request_changes(
                 # Derived from the action's idempotency key so the run is
                 # traceable to this decision action and stable across retries.
                 idempotency_key=f"decision-regen:{decision.id}:{key[:100]}",
+                prompt_override=(
+                    f"{task.prompt}\n\n"
+                    f"Regeneration feedback:\n{payload.reason}"
+                ),
             )
             db.add(run)
             await db.flush()
             decision.status = "changes_requested"
             decision.change_request = payload.reason
+            decision.rejection_reason = payload.reason if reason_type is not None else None
+            decision.reason_type = reason_type
+            decision.approver_user_id = context.user_id if reason_type is not None else None
+            decision.decided_at = datetime.now(UTC) if reason_type is not None else None
             decision.regeneration_run_id = run.id
             decision.revision += 1
+            if reason_type is not None:
+                await record_audit(
+                    db,
+                    context.membership,
+                    action="pipeline.decision.reject",
+                    resource_type="dashboard_decision",
+                    resource_id=str(decision.id),
+                    details={"reason_type": reason_type, "regeneration_run_id": run.id},
+                )
+                await _enqueue_decision_feishu_deliveries(
+                    db,
+                    organization_id=context.organization_id,
+                    user_id=decision.user_id,
+                    decision_id=decision.id,
+                    decision_status="changes_requested",
+                    payload={
+                        "reason_type": reason_type,
+                        "regeneration_run_id": run.id,
+                    },
+                )
         await db.commit()
     except IntegrityError:
         return await replay_decision_after_conflict(
@@ -555,74 +652,11 @@ async def reject_decision(
     context: DecisionWriteContext,
     idempotency_key: Annotated[str, Header(alias="Idempotency-Key", min_length=1)],
 ) -> object:
-    if payload.reason_type == "regenerate":
-        return await request_changes(
-            decision_id,
-            RequestChangesRequest(reason=payload.reason),
-            db,
-            context,
-            idempotency_key,
-        )
-
-    organization_id = context.organization_id
-    user_id = context.user_id
-    decision = await repository(db, context).decision(decision_id)
-    action_payload = payload.model_dump()
-    try:
-        action_created = await record_decision_action(
-            db,
-            organization_id=organization_id,
-            user_id=user_id,
-            decision_id=decision.id,
-            action="reject",
-            idempotency_key=idempotency_key,
-            payload=action_payload,
-        )
-        if not action_created:
-            return decision
-        if decision.status != "pending":
-            raise HTTPException(status_code=409, detail="Decision is already terminal")
-        decision.status = "rejected"
-        decision.change_request = payload.reason
-        decision.revision += 1
-        await record_audit(
-            db,
-            context.membership,
-            action="pipeline.decision.reject",
-            resource_type="dashboard_decision",
-            resource_id=str(decision.id),
-            details={"reason_type": payload.reason_type},
-        )
-        db.add(
-            NotificationOutbox(
-                organization_id=organization_id,
-                event_key=f"decision-rejected:{decision.id}",
-                event_type="pipeline.decision.rejected",
-                payload={
-                    "decision_id": decision.id,
-                    "status": "rejected",
-                    "reason_type": payload.reason_type,
-                },
-                status="pending",
-            )
-        )
-        await _enqueue_decision_feishu_deliveries(
-            db,
-            organization_id=organization_id,
-            user_id=decision.user_id,
-            decision_id=decision.id,
-            decision_status="rejected",
-        )
-        await db.commit()
-    except IntegrityError:
-        return await replay_decision_after_conflict(
-            db,
-            organization_id=organization_id,
-            user_id=user_id,
-            decision_id=decision_id,
-            action="reject",
-            idempotency_key=idempotency_key,
-            payload=action_payload,
-        )
-    await db.refresh(decision)
-    return decision
+    return await request_changes(
+        decision_id,
+        RequestChangesRequest(reason=payload.reason),
+        db,
+        context,
+        idempotency_key,
+        payload.reason_type,
+    )

@@ -52,6 +52,7 @@ export function createContractAuthBridge(
   return {
     async fetchMe() {
       const user = await runtime.client.request<UserResponse>("/auth/me");
+      runtime.store.commitUser(user);
       return toLegacyUser(user);
     },
     getToken() {

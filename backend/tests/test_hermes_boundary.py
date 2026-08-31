@@ -174,6 +174,34 @@ async def test_http_adapter_submits_scoped_run_with_bearer_and_idempotency_heade
 
 
 @pytest.mark.asyncio
+async def test_http_adapter_submits_conversation_history_for_stateful_runs():
+    module = hermes_client_module()
+    requests: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        return httpx.Response(202, json={"run_id": "run-follow-up"})
+
+    client = module.HermesHttpClient(
+        "http://hermes:8642",
+        api_key="test-api-key",
+        transport=httpx.MockTransport(handler),
+    )
+    history = [
+        {"role": "user", "content": "我叫小明"},
+        {"role": "assistant", "content": "你好，小明。"},
+    ]
+
+    await client.create_response(
+        "我叫什么？",
+        "platform-session-7",
+        conversation_history=history,
+    )
+
+    assert json.loads(requests[0].content)["conversation_history"] == history
+
+
+@pytest.mark.asyncio
 async def test_http_adapter_adds_instructions_only_for_knowledge_run():
     module = hermes_client_module()
     requests: list[httpx.Request] = []

@@ -23,6 +23,7 @@ export type AuthState = {
 export type AuthStore = {
   getState(): AuthState;
   subscribe(listener: () => void): () => void;
+  commitUser(user: AuthSession["user"]): void;
   commitToken(token: AuthSession["token"]): void;
   login(request: LoginRequest): Promise<AuthSession>;
   logout(): Promise<void>;
@@ -89,6 +90,19 @@ export function createAuthStore(options: AuthStoreOptions): AuthStore {
     subscribe(listener) {
       listeners.add(listener);
       return () => listeners.delete(listener);
+    },
+    commitUser(user) {
+      if (state.session) {
+        commitSession({ ...state.session, user });
+        return;
+      }
+      state = {
+        organizationId: user.organization_id,
+        session: null,
+        status: "authenticated",
+        user,
+      };
+      notify();
     },
     commitToken(token) {
       if (!state.session) return;

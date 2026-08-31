@@ -4,6 +4,7 @@ from pathlib import Path
 os.environ["DATABASE_URL"] = "sqlite+aiosqlite:///./test_agent_platform.db"
 os.environ["JWT_SECRET_KEY"] = "test-secret-key-with-sufficient-length"
 os.environ["RAG_QUERY_AUDIT_HMAC_KEY"] = "test-only-query-audit-key"
+os.environ["SINGLE_USER_MODE"] = "false"
 
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient

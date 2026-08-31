@@ -52,11 +52,37 @@ def test_migrations_upgrade_a_fresh_sqlite_database_to_head(
             row[1]: row[4]
             for row in connection.execute("PRAGMA table_info('work_items')").fetchall()
         }
+        pipeline_task_columns = {
+            row[1]
+            for row in connection.execute("PRAGMA table_info('pipeline_tasks')").fetchall()
+        }
+        decision_columns = {
+            row[1]
+            for row in connection.execute("PRAGMA table_info('dashboard_decisions')").fetchall()
+        }
+        pipeline_run_columns = {
+            row[1]
+            for row in connection.execute("PRAGMA table_info('pipeline_runs')").fetchall()
+        }
 
-    assert version == ("20260823_0022",)
+    assert version == ("20260827_0024",)
     assert table_sql is not None
     assert "ck_work_items_task_scope" in table_sql[0]
     assert columns["task_scope"] == "'day'"
+    assert {
+        "approval_required",
+        "approval_assignee_type",
+        "approval_assignee_id",
+        "approval_role_name",
+    }.issubset(pipeline_task_columns)
+    assert {
+        "approver_user_id",
+        "approval_comment",
+        "rejection_reason",
+        "reason_type",
+        "decided_at",
+    }.issubset(decision_columns)
+    assert "prompt_override" in pipeline_run_columns
 
 
 def test_work_item_model_exposes_traceable_archive_fields_and_due_index() -> None:

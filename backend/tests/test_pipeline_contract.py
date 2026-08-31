@@ -66,6 +66,23 @@ async def test_wednesday_ai_news_prompt_is_parsed_as_a_scheduled_web_task(
 
 
 @pytest.mark.asyncio
+async def test_feishu_todo_digest_prompt_gets_a_user_facing_task_title(
+    client: AsyncClient, admin_headers: dict[str, str]
+) -> None:
+    response = await client.post(
+        "/api/pipeline/tasks/draft",
+        headers=admin_headers,
+        json={
+            "prompt": "请创建每天09:00读取我的飞书待办并生成摘要的定时任务，并立即执行一次"
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["title"] == "飞书待办每日摘要"
+    assert response.json()["schedule"] == "0 9 * * *"
+
+
+@pytest.mark.asyncio
 async def test_pipeline_task_run_decision_output_and_download_are_owner_scoped(
     client: AsyncClient, admin_headers: dict[str, str]
 ) -> None:

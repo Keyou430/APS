@@ -20,7 +20,11 @@ from app.models import (
     ChannelIdentity,
     RoutingRule,
     User,
+    OrganizationMembership,
+    Role,
 )
+from app.auth.security import hash_password
+from app.services.pipeline_approval import is_authorized_approver
 from app.services.pipeline_executor import PipelineExecutionResult, run_pipeline_cycle
 from app.services.web_evidence import WebEvidence
 
@@ -125,7 +129,149 @@ async def test_approve_creates_traceable_memory_in_the_same_owner_scope(
         )
         assert memory is not None
         assert memory.type == "decision"
-        assert memory.metadata_["pipeline_output_id"] == str(decision["output_id"])
+    assert memory.metadata_["pipeline_output_id"] == str(decision["output_id"])
+
+
+async def test_approve_records_optional_comment_and_audit_timestamp(
+    client: AsyncClient, admin_headers: dict[str, str]
+) -> None:
+    decision = await _pending_decision(client, admin_headers, run_key="approve-comment-run")
+    response = await client.post(
+        f"/api/dashboard/decisions/{decision['id']}/approve",
+        headers={**admin_headers, "Idempotency-Key": "approve-comment"},
+        json={"comment": "已核对来源，可以归档"},
+    )
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["status"] == "approved"
+    assert body["approval_comment"] == "已核对来源，可以归档"
+    assert body["approver_user_id"] is not None
+    assert body["decided_at"] is not None
+
+
+async def test_completed_run_creates_one_pending_decision_notification(
+    client: AsyncClient, admin_headers: dict[str, str]
+) -> None:
+    decision = await _pending_decision(
+        client, admin_headers, run_key="pending-decision-notification"
+    )
+    async with SessionLocal() as db:
+        stored = await db.get(DashboardDecision, decision["id"])
+        notification = await db.scalar(
+            select(NotificationOutbox).where(
+                NotificationOutbox.event_key == f"decision-pending:{decision['id']}"
+            )
+        )
+    assert stored is not None
+    assert stored.approver_user_id == stored.user_id
+    assert notification is not None
+    assert notification.event_type == "pipeline.decision.pending"
+    assert notification.payload["recipient_user_ids"] == [stored.user_id]
+
+
+async def test_task_creation_rejects_missing_member_approver(
+    client: AsyncClient, admin_headers: dict[str, str]
+) -> None:
+    response = await client.post(
+        "/api/pipeline/tasks",
+        headers=admin_headers,
+        json={
+            "confirmed": True,
+            "title": "Invalid approver",
+            "prompt": "Summarize information",
+            "task_type": "general",
+            "schedule": None,
+            "timezone": "Asia/Shanghai",
+            "input_sources": [],
+            "output_format": "markdown",
+            "approval_required": True,
+            "approval_assignee_type": "member",
+            "approval_assignee_id": 999999,
+        },
+    )
+    assert response.status_code == 422
+
+
+async def test_member_approval_does_not_implicitly_authorize_task_creator() -> None:
+    async with SessionLocal() as db:
+        owner = await db.scalar(select(User).where(User.username == "admin"))
+        role = await db.scalar(select(Role).where(Role.name == "admin"))
+        assert owner is not None and role is not None
+        assignee = User(
+            username=f"approval-member-{uuid4().hex[:8]}",
+            email=f"approval-member-{uuid4().hex[:8]}@example.com",
+            password_hash=hash_password("approval-test-password"),
+            role_id=role.id,
+            default_organization_id=owner.default_organization_id,
+        )
+        db.add(assignee)
+        await db.flush()
+        db.add(
+            OrganizationMembership(
+                organization_id=owner.default_organization_id,
+                user_id=assignee.id,
+                role_id=role.id,
+            )
+        )
+        task = PipelineTask(
+            organization_id=owner.default_organization_id,
+            user_id=owner.id,
+            title="Assigned approval",
+            prompt="Review information",
+            task_type="general",
+            timezone="Asia/Shanghai",
+            input_sources=[],
+            output_format="markdown",
+            status="ready",
+            approval_required=True,
+            approval_assignee_type="member",
+            approval_assignee_id=assignee.id,
+        )
+        db.add(task)
+        await db.flush()
+
+        assert await is_authorized_approver(db, task=task, user_id=owner.id) is False
+        assert await is_authorized_approver(db, task=task, user_id=assignee.id) is True
+        await db.rollback()
+
+
+async def test_reject_records_required_reason_without_creating_memory(
+    client: AsyncClient, admin_headers: dict[str, str]
+) -> None:
+    decision = await _pending_decision(client, admin_headers, run_key="reject-reason-run")
+    response = await client.post(
+        f"/api/dashboard/decisions/{decision['id']}/reject",
+        headers={**admin_headers, "Idempotency-Key": "reject-reason"},
+        json={"reason": "来源时效不足", "reason_type": "other"},
+    )
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["status"] == "changes_requested"
+    assert body["rejection_reason"] == "来源时效不足"
+    assert body["reason_type"] == "other"
+    assert body["regeneration_run_id"] is not None
+    assert body["approver_user_id"] is not None
+    assert body["decided_at"] is not None
+    async with SessionLocal() as db:
+        memory = await db.scalar(
+            select(MemoryRecord).where(
+                MemoryRecord.metadata_["pipeline_decision_id"].as_string()
+                == str(decision["id"])
+            )
+        )
+    assert memory is None
+
+
+async def test_reject_requires_a_non_empty_reason(
+    client: AsyncClient, admin_headers: dict[str, str]
+) -> None:
+    decision = await _pending_decision(client, admin_headers, run_key="reject-empty-reason-run")
+    response = await client.post(
+        f"/api/dashboard/decisions/{decision['id']}/reject",
+        headers={**admin_headers, "Idempotency-Key": "reject-empty-reason"},
+        json={"reason": " ", "reason_type": "other"},
+    )
+    assert response.status_code == 422
 
 
 async def _decision_organization_id(decision: dict) -> int:
@@ -227,7 +373,7 @@ async def test_approve_creates_idempotent_feishu_delivery_outbox_rows(
     assert all(item.delivery_target_id != inactive_target_id for item in delivery_rows)
 
 
-async def test_reject_creates_feishu_delivery_outbox_row(
+async def test_reject_creates_changes_requested_feishu_delivery_outbox_row(
     client: AsyncClient, admin_headers: dict[str, str]
 ) -> None:
     decision = await _pending_decision(client, admin_headers)
@@ -244,13 +390,15 @@ async def test_reject_creates_feishu_delivery_outbox_row(
         row = await db.scalar(
             select(DeliveryOutbox).where(
                 DeliveryOutbox.idempotency_key
-                == f"decision-rejected:{decision['id']}:feishu:{target_id}"
+                == f"decision-changes-requested:{decision['id']}:feishu:{target_id}"
             )
         )
         assert row is not None
         assert row.payload == {
             "decision_id": decision["id"],
-            "status": "rejected",
+            "status": "changes_requested",
+            "reason_type": "no_need",
+            "regeneration_run_id": response.json()["regeneration_run_id"],
         }
 
 
@@ -301,8 +449,8 @@ async def test_request_changes_preserves_old_output_and_creates_new_run(
         assert old_decision is not None and old_decision.change_request
 
 
-@pytest.mark.parametrize("reason_type", ["no_need", "other"])
-async def test_reject_archives_decision_without_creating_a_regeneration_run(
+@pytest.mark.parametrize("reason_type", ["no_need", "other", "regenerate"])
+async def test_reject_creates_a_regeneration_run_for_every_reason_type(
     client: AsyncClient,
     admin_headers: dict[str, str],
     reason_type: str,
@@ -316,22 +464,80 @@ async def test_reject_archives_decision_without_creating_a_regeneration_run(
     )
 
     assert response.status_code == 200
-    assert response.json()["status"] == "rejected"
+    assert response.json()["status"] == "changes_requested"
     assert response.json()["change_request"] == "No longer needed"
-    assert response.json()["regeneration_run_id"] is None
+    assert response.json()["regeneration_run_id"] != decision["run_id"]
     replay = await client.post(
         f"/api/dashboard/decisions/{decision['id']}/reject",
         headers={**admin_headers, "Idempotency-Key": f"reject-{reason_type}"},
         json={"reason": "No longer needed", "reason_type": reason_type},
     )
     assert replay.status_code == 200
-    assert replay.json()["status"] == "rejected"
+    assert replay.json()["status"] == "changes_requested"
 
     async with SessionLocal() as db:
         action = await db.scalar(
             select(DecisionAction).where(DecisionAction.decision_id == decision["id"])
         )
-        assert action is not None and action.action == "reject"
+        new_run = await db.get(PipelineRun, response.json()["regeneration_run_id"])
+        assert action is not None and action.action == "regenerate"
+        assert new_run is not None and new_run.status == "queued"
+
+
+async def test_reject_reason_is_included_in_the_regeneration_prompt(
+    client: AsyncClient, admin_headers: dict[str, str]
+) -> None:
+    decision = await _pending_decision(
+        client, admin_headers, run_key="reject-feedback-run"
+    )
+    response = await client.post(
+        f"/api/dashboard/decisions/{decision['id']}/reject",
+        headers={**admin_headers, "Idempotency-Key": "reject-feedback"},
+        json={"reason": "补充最近 30 天的独立来源", "reason_type": "other"},
+    )
+    assert response.status_code == 200, response.text
+    regeneration_run_id = response.json()["regeneration_run_id"]
+
+    seen_prompts: list[str] = []
+
+    class FeedbackExecutor:
+        async def execute(self, task: PipelineTask) -> PipelineExecutionResult:
+            seen_prompts.append(task.prompt)
+            correlation_id = "reject-feedback-evidence"
+            return PipelineExecutionResult(
+                title=task.title,
+                markdown="# Regenerated knowledge",
+                sources=[
+                    {
+                        "url": "https://example.com/source",
+                        "title": "Source",
+                        "published_at": "2026-08-17T00:00:00Z",
+                        "searched_at": "2026-08-17T02:00:00Z",
+                    }
+                ],
+                summary="Regenerated from feedback",
+                correlation_id=correlation_id,
+                evidence=[_evidence(correlation_id)],
+            )
+
+    await run_pipeline_cycle(
+        SessionLocal,
+        executor=FeedbackExecutor(),
+        worker_id="reject-feedback-worker",
+        limit=1,
+    )
+
+    assert seen_prompts == [
+        "search current trends\n\nRegeneration feedback:\n补充最近 30 天的独立来源"
+    ]
+    async with SessionLocal() as db:
+        regenerated_decision = await db.scalar(
+            select(DashboardDecision).where(
+                DashboardDecision.run_id == regeneration_run_id
+            )
+        )
+    assert regenerated_decision is not None
+    assert regenerated_decision.status == "pending"
 
 
 async def test_reject_with_regenerate_reason_creates_a_new_run(

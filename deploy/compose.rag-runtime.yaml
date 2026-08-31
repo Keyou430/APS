@@ -1,0 +1,7 @@
+services:
+  # The API image contains the worker's runtime dependencies needed for the
+  # query-embedding proxy.  Docling remains optional until a document is parsed.
+  rag-worker:
+    image: hermes-platform-local-api:latest
+    pull_policy: never
+    command: ["python", "-m", "app.workers.rag_worker"]

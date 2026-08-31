@@ -1,0 +1,12 @@
+services:
+  pipeline-worker:
+    environment:
+      RAG_QUERY_AUDIT_HMAC_KEY: ${RAG_QUERY_AUDIT_HMAC_KEY:?Set RAG_QUERY_AUDIT_HMAC_KEY in deploy/.env}
+
+  pipeline-approval-worker:
+    environment:
+      RAG_QUERY_AUDIT_HMAC_KEY: ${RAG_QUERY_AUDIT_HMAC_KEY:?Set RAG_QUERY_AUDIT_HMAC_KEY in deploy/.env}
+
+  delivery-worker:
+    environment:
+      RAG_QUERY_AUDIT_HMAC_KEY: ${RAG_QUERY_AUDIT_HMAC_KEY:?Set RAG_QUERY_AUDIT_HMAC_KEY in deploy/.env}

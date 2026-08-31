@@ -44,7 +44,7 @@ def test_scheduled_pipeline_command_ignores_questions_and_non_create_statements(
 
 
 @pytest.mark.asyncio
-async def test_chat_command_creates_scheduled_task_and_executes_its_own_run() -> None:
+async def test_chat_command_returns_draft_without_creating_or_running_task() -> None:
     class FakeExecutor:
         async def execute(self, task: PipelineTask) -> PipelineExecutionResult:
             correlation_id = f"chat-command-{task.id}"
@@ -59,7 +59,8 @@ async def test_chat_command_creates_scheduled_task_and_executes_its_own_run() ->
 
     command = parse_scheduled_pipeline_command("请创建每周三 AI 最新动态周报定时任务，并立即执行一次")
     assert command is not None
-    assert command.status == "ready"
+    assert command.status == "draft"
+    assert command.draft is not None
 
     async with SessionLocal() as db:
         user = await db.scalar(select(User).where(User.username == "admin"))
@@ -83,26 +84,29 @@ async def test_chat_command_creates_scheduled_task_and_executes_its_own_run() ->
             session_factory=SessionLocal,
         )
 
-    assert result.status == "completed"
-    assert result.task_id is not None
-    assert result.run_id is not None
+    assert result.status == "draft"
+    assert result.task_id is None
+    assert result.run_id is None
+    assert result.draft is not None
+    assert result.draft["schedule"] == "0 9 * * 3"
+    assert result.draft["approval_required"] is True
+    assert result.as_event()["run_now"] is True
 
     async with SessionLocal() as db:
-        task = await db.get(PipelineTask, result.task_id)
-        run = await db.get(PipelineRun, result.run_id)
+        task_count = await db.scalar(select(func.count(PipelineTask.id)))
+        run_count = await db.scalar(select(func.count(PipelineRun.id)))
         audit = await db.scalar(
             select(AuditEvent).where(
                 AuditEvent.action == "chat.pipeline_task.create_and_run",
-                AuditEvent.resource_id == str(result.task_id),
             )
         )
-    assert task is not None and task.schedule == "0 9 * * 3"
-    assert run is not None and run.status == "completed"
-    assert audit is not None
+    assert task_count == 0
+    assert run_count == 0
+    assert audit is None
 
 
 @pytest.mark.asyncio
-async def test_chat_command_reuses_the_same_task_and_run_for_a_retried_message() -> None:
+async def test_chat_command_replays_same_draft_for_a_retried_message_without_side_effects() -> None:
     class FakeExecutor:
         executions = 0
 
@@ -119,7 +123,7 @@ async def test_chat_command_reuses_the_same_task_and_run_for_a_retried_message()
             )
 
     command = parse_scheduled_pipeline_command("请创建每周三 AI 最新动态周报定时任务，并立即执行一次")
-    assert command is not None and command.status == "ready"
+    assert command is not None and command.status == "draft"
     executor = FakeExecutor()
     async with SessionLocal() as db:
         user = await db.scalar(select(User).where(User.username == "admin"))
@@ -154,11 +158,10 @@ async def test_chat_command_reuses_the_same_task_and_run_for_a_retried_message()
             session_factory=SessionLocal,
         )
 
-    assert second.task_id == first.task_id
-    assert second.run_id == first.run_id
-    assert executor.executions == 1
+    assert second.as_event() == first.as_event()
+    assert executor.executions == 0
     async with SessionLocal() as db:
         task_count = await db.scalar(select(func.count(PipelineTask.id)))
         run_count = await db.scalar(select(func.count(PipelineRun.id)))
-    assert task_count == 1
-    assert run_count == 1
+    assert task_count == 0
+    assert run_count == 0

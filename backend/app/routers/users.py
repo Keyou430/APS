@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.dependencies import OrganizationContext, require_permission
 from app.auth.security import hash_password
+from app.config import get_settings
 from app.database import get_db
 from app.models import OrganizationMembership, Role, User
 from app.schemas.auth import UserResponse
@@ -27,6 +28,7 @@ def user_response(user: User, membership: OrganizationMembership, role: Role) ->
         {
             "id": user.id,
             "username": user.username,
+            "display_name": user.display_name,
             "email": user.email,
             "role": role.name,
             "member_type": membership.member_type,
@@ -150,12 +152,18 @@ async def list_users(
 async def create_user(
     payload: UserCreate, db: DbSession, admin: OrgAdminContext
 ) -> UserResponse:
+    if get_settings().single_user_mode:
+        raise HTTPException(
+            status_code=409,
+            detail="Single-user mode only allows the admin account",
+        )
     role = await db.scalar(select(Role).where(Role.name == payload.role))
     if role is None:
         raise HTTPException(status_code=400, detail="Unknown role")
     normalized_email = str(payload.email).strip().casefold()
     user = User(
         username=payload.username,
+        display_name=payload.display_name.strip() if payload.display_name else None,
         email=str(payload.email),
         normalized_email=normalized_email,
         password_hash=hash_password(payload.password),
@@ -216,6 +224,8 @@ async def update_user(
         if name == "email" and value is not None:
             user.email = str(value)
             user.normalized_email = str(value).strip().casefold()
+        elif name == "display_name":
+            user.display_name = value.strip() if value and value.strip() else None
         else:
             setattr(user, name, value)
     try:

@@ -126,6 +126,7 @@ services:
       HERMES_API_KEY: ${HERMES_API_SERVER_KEY:?Set HERMES_API_SERVER_KEY}
       HERMES_USE_HTTP: "true"
       HERMES_HTTP_TIMEOUT_SECONDS: "120"
+      RAG_QUERY_AUDIT_HMAC_KEY: ${RAG_QUERY_AUDIT_HMAC_KEY:?Set RAG_QUERY_AUDIT_HMAC_KEY in deploy/.env}
       UPLOAD_DIR: /data/uploads
     volumes:
       - backend_uploads:/data/uploads
@@ -135,6 +136,25 @@ services:
       hermes:
         condition: service_healthy
       hermes-knowledge:
+        condition: service_healthy
+    networks:
+      - platform
+
+  pipeline-approval-worker:
+    build:
+      context: ../backend
+      dockerfile: ../deploy/backend.Dockerfile
+    restart: unless-stopped
+    command: ["python", "-m", "app.workers.pipeline_approval_worker"]
+    environment:
+      APP_ENV: container
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-agent_platform}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:?Set JWT_SECRET_KEY in deploy/.env}
+      JWT_ALGORITHM: HS256
+      RAG_QUERY_AUDIT_HMAC_KEY: ${RAG_QUERY_AUDIT_HMAC_KEY:?Set RAG_QUERY_AUDIT_HMAC_KEY in deploy/.env}
+      PIPELINE_APPROVAL_WORKER_POLL_SECONDS: ${PIPELINE_APPROVAL_WORKER_POLL_SECONDS:-30}
+    depends_on:
+      db:
         condition: service_healthy
     networks:
       - platform

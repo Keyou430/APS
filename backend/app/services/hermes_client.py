@@ -110,6 +110,7 @@ class HermesProvider(Protocol):
         session_id: str,
         *,
         context: HermesRequestContext | None = None,
+        conversation_history: list[dict[str, str]] | None = None,
         previous_response_id: str | None = None,
         idempotency_key: str | None = None,
         instructions: str | None = None,
@@ -144,11 +145,12 @@ class HermesClient:
         session_id: str,
         *,
         context: HermesRequestContext | None = None,
+        conversation_history: list[dict[str, str]] | None = None,
         previous_response_id: str | None = None,
         idempotency_key: str | None = None,
         instructions: str | None = None,
     ) -> str:
-        del context, previous_response_id, idempotency_key, instructions
+        del context, conversation_history, previous_response_id, idempotency_key, instructions
         now = datetime.now(UTC)
         self._messages[session_id].append(
             {"id": uuid4().hex, "role": "user", "content": content, "created_at": now}
@@ -267,11 +269,14 @@ class HermesHttpClient:
         session_id: str,
         *,
         context: HermesRequestContext | None = None,
+        conversation_history: list[dict[str, str]] | None = None,
         previous_response_id: str | None = None,
         idempotency_key: str | None = None,
         instructions: str | None = None,
     ) -> str:
         payload: dict[str, Any] = {"input": content, "session_id": session_id}
+        if conversation_history:
+            payload["conversation_history"] = conversation_history
         if previous_response_id:
             payload["previous_response_id"] = previous_response_id
         if instructions:

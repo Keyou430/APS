@@ -294,13 +294,12 @@ function mapAnnouncementsToAdminNews(response) {
 
 function mapAdminNewsToAnnouncementPayload(payload) {
   return {
-    body: payload.body,
-    category: payload.category,
-    content: payload.body,
-    isPinned: !!payload.pinned,
-    publishedAt: payload.published_at,
-    source: payload.source,
     title: payload.title,
+    summary: payload.body,
+    content: payload.body,
+    priority: payload.category === "重要" || payload.category === "important"
+      ? "important"
+      : "normal",
   }
 }
 
@@ -389,6 +388,10 @@ function mapChatSessionsToLegacySessions(response) {
       session && (session.updated_at || session.updatedAt)
         ? String(session.updated_at || session.updatedAt).slice(0, 16).replace("T", " ")
         : "",
+    requestGeneration: 0,
+    activeAbortController: null,
+    activeChatRunId: null,
+    activeStopPromise: null,
   }))
 }
 
@@ -409,10 +412,22 @@ function parseChatSseFrame(frameText) {
   return { data, event }
 }
 
-function applyChatSseFrame(frame, assistantMsg) {
+function isCurrentChatRequest(session, generation) {
+  return (
+    !!session &&
+    session.requestGeneration === generation &&
+    state.chatSessions.activeSessionId === session.id
+  )
+}
+
+function applyChatSseFrame(frame, assistantMsg, session, generation) {
+  // Every browser-visible update is session-scoped. A late SSE frame from a
+  // window that has been switched away from must never repaint the active one.
+  if (!isCurrentChatRequest(session, generation)) return true
   var event = frame.event || "message"
   var data = frame.data || {}
   if (event === "run.created" && data.run_id) {
+    session.activeChatRunId = data.run_id
     state.activeChatRunId = data.run_id
     return false
   }
@@ -491,20 +506,20 @@ function applyChatSseFrame(frame, assistantMsg) {
   return false
 }
 
-function drainChatSseBuffer(buffer, assistantMsg) {
+function drainChatSseBuffer(buffer, assistantMsg, session, generation) {
   var terminalReceived = false
   var parts = buffer.split(/\r?\n\r?\n/)
   var remainder = parts.pop() || ""
   parts.forEach((part) => {
     if (!part.trim()) return
     terminalReceived =
-      applyChatSseFrame(parseChatSseFrame(part), assistantMsg) ||
+      applyChatSseFrame(parseChatSseFrame(part), assistantMsg, session, generation) ||
       terminalReceived
   })
   return { remainder, terminalReceived }
 }
 
-async function readChatSseResponse(response, assistantMsg) {
+async function readChatSseResponse(response, assistantMsg, session, generation) {
   if (!response || !response.ok) {
     throw new Error("Chat SSE request failed")
   }
@@ -517,7 +532,7 @@ async function readChatSseResponse(response, assistantMsg) {
       var result = await reader.read()
       if (result.done) break
       pending += decoder.decode(result.value, { stream: true })
-      var drained = drainChatSseBuffer(pending, assistantMsg)
+      var drained = drainChatSseBuffer(pending, assistantMsg, session, generation)
       pending = drained.remainder
       terminalReceived = terminalReceived || drained.terminalReceived
     }
@@ -525,9 +540,14 @@ async function readChatSseResponse(response, assistantMsg) {
   } else if (response.text) {
     pending = await response.text()
   }
-  var finalDrain = drainChatSseBuffer(pending + "\n\n", assistantMsg)
+  var finalDrain = drainChatSseBuffer(
+    pending + "\n\n",
+    assistantMsg,
+    session,
+    generation,
+  )
   terminalReceived = terminalReceived || finalDrain.terminalReceived
-  if (!terminalReceived) {
+  if (!terminalReceived && isCurrentChatRequest(session, generation)) {
     assistantMsg.status = "interrupted"
     if (!assistantMsg.content) assistantMsg.content = "生成中断，请稍后重试。"
   }
@@ -612,6 +632,8 @@ const portalNewsItems = [
   },
 ]
 // ── Auth state (Phase 2) ─────────────────────────────────────
+// Anonymous /auth/me succeeds only when the backend enables single-user mode.
+let _singleUserMode = false
 let _authToken = null
 let _authUser = null
 let _authRefreshing = false
@@ -688,13 +710,22 @@ function clearAuth() {
   _resetUserState()
 }
 
-// The React contract layer (authRuntime) clears only its own store when a
-// 401 refresh fails. Without this bridge the legacy app keeps calling APIs
-// with a dead token and every request fails until a manual reload.
+async function restoreSingleUserIdentity() {
+  _authToken = null
+  _authUser = null
+  window.App = window.App || {}
+  window.App._authToken = null
+  window.App._authUserId = null
+  _syncAuthModule(null, null)
+  await loadCurrentUser()
+  return _authUser !== null
+}
+
 window.addEventListener("agent-platform:session-cleared", function () {
   if (_authToken !== null || _authUser !== null) {
-    clearAuth()
-    showLoginOverlay()
+    void restoreSingleUserIdentity().then(function (restored) {
+      if (!restored) showLoginOverlay()
+    })
   }
 })
 
@@ -738,16 +769,20 @@ function _resetUserState() {
 function isSuperAdmin() {
   return !!(
     _authUser &&
-    Array.isArray(_authUser.roles) &&
-    _authUser.roles.includes("super_admin")
+    ((Array.isArray(_authUser.roles) &&
+      (_authUser.roles.includes("super_admin") ||
+        _authUser.roles.includes("admin"))) ||
+      (Array.isArray(_authUser.permissions) &&
+        _authUser.permissions.includes("*")))
   )
 }
 
 function isLoggedIn() {
-  return _authToken !== null && _authUser !== null
+  return _authUser !== null
 }
 
 async function refreshAuthToken() {
+  if (_singleUserMode && !_authToken) return null
   // Single-flight guard: if a refresh is already in progress, wait for it
   if (_authRefreshing && _authRefreshPromise) {
     try {
@@ -793,10 +828,11 @@ async function refreshAuthToken() {
 }
 
 async function loadCurrentUser() {
-  if (!_authToken) return
   try {
     var contractAuth = getContractAuth()
     if (contractAuth && contractAuth.fetchMe) {
+      _authToken = contractAuth.getToken ? contractAuth.getToken() : _authToken
+      _singleUserMode = !_authToken
       _authUser = await contractAuth.fetchMe()
       window.App = window.App || {}
       window.App._authUserId = _authUser && _authUser.id ? _authUser.id : null
@@ -810,9 +846,10 @@ async function loadCurrentUser() {
       return
     }
     var resp = await fetch(authBaseUrl + "/me", {
-      headers: { Authorization: `Bearer ${_authToken}` },
+      headers: _authToken ? { Authorization: `Bearer ${_authToken}` } : {},
     })
     if (resp.ok) {
+      _singleUserMode = !_authToken
       _authUser = await resp.json()
       window.App = window.App || {}
       window.App._authUserId = _authUser && _authUser.id ? _authUser.id : null
@@ -826,7 +863,7 @@ async function loadCurrentUser() {
       return
     }
     // On 401, try to refresh the access token once before giving up
-    if (resp.status === 401) {
+    if (resp.status === 401 && _authToken) {
       try {
         await refreshAuthToken()
         resp = await fetch(authBaseUrl + "/me", {
@@ -852,6 +889,7 @@ async function loadCurrentUser() {
       clearAuth()
     }
   } catch (e) {
+    if (!_authToken && e && e.status === 401) _singleUserMode = false
     console.warn("Failed to load current user", e)
   }
 }
@@ -958,31 +996,17 @@ function withTimeout(promise, timeoutMs, message) {
 }
 
 async function handleLogout() {
+  document.getElementById("userPopover").classList.remove("show")
   try {
     var contractAuth = getContractAuth()
-    if (contractAuth && contractAuth.logout) {
+    if (contractAuth && contractAuth.logout && contractAuth.getToken()) {
       await withTimeout(contractAuth.logout(), 8000, "logout timeout")
-    } else {
-      await withTimeout(
-        fetch(authBaseUrl + "/logout", {
-          method: "POST",
-          credentials: "include",
-        }),
-        8000,
-        "logout timeout",
-      )
     }
   } catch (e) {
-    // ignore
+    // Local session state is still cleared below.
   }
   clearAuth()
-  // Reset portal profile to empty defaults on explicit logout only
-  if (typeof state !== "undefined" && state.portalProfile) {
-    state.portalProfile = { ...defaultProfile }
-    saveProfile()
-    syncProfileUI()
-  }
-  document.getElementById("userPopover").classList.remove("show")
+  if (!(await restoreSingleUserIdentity())) showLoginOverlay()
 }
 
 async function handleChangePassword(currentPassword, newPassword) {
@@ -1109,6 +1133,8 @@ var _initAuthReady = (async function initAuth() {
   var maxRetries = 3
   for (var attempt = 0; attempt < maxRetries; attempt++) {
     try {
+      await loadCurrentUser()
+      if (_authUser) break
       var contractAuth = getContractAuth()
       if (contractAuth && contractAuth.refresh) {
         var contractData = await contractAuth.refresh()
@@ -1675,6 +1701,7 @@ const state = {
   editingEventIndex: null,
   events: getInitialEvents(),
   tasks: getInitialTasks(),
+  cockpitPipelineTasks: [],
   cockpitDecisions: [],
   cockpitDecisionFilter: "all",
   cockpitDecisionContractsAvailable: false,
@@ -2901,11 +2928,17 @@ async function deleteNewsById(newsId) {
 async function createAdminNews(payload) {
   var enterpriseService = requireAppRuntimeService(
     "enterprise",
-    "createAnnouncement",
+    "createPublishedAnnouncement",
   )
-  return enterpriseService.createAnnouncement(
+  var announcement = await enterpriseService.createPublishedAnnouncement(
     mapAdminNewsToAnnouncementPayload(payload),
   )
+  if (payload.pinned && announcement?.id) {
+    announcement = await enterpriseService.pinAnnouncement(announcement.id, {
+      isPinned: true,
+    })
+  }
+  return announcement
 }
 
 async function updateAdminNews(newsId, payload) {
@@ -2922,7 +2955,9 @@ async function updateAdminNews(newsId, payload) {
 function canPublishNotices() {
   if (!_authUser) return false
   return (
-    (_authUser.roles || []).indexOf("super_admin") !== -1 ||
+    (_authUser.roles || []).some((role) =>
+      role === "super_admin" || role === "admin",
+    ) ||
     (_authUser.permissions || []).indexOf("notice:publish") !== -1
   )
 }
@@ -2949,15 +2984,12 @@ function openNoticePublishModal() {
 async function publishNoticeRemote(payload) {
   var enterpriseService = requireAppRuntimeService(
     "enterprise",
-    "createAnnouncement",
+    "createPublishedAnnouncement",
   )
-  return enterpriseService.createAnnouncement({
-    body: payload.body,
-    category: payload.category,
-    publishedAt: payload.published_at,
-    source: payload.source,
+  return enterpriseService.createPublishedAnnouncement({
+    content: payload.body,
+    summary: payload.body,
     title: payload.title,
-    visibility: payload.visibility,
   })
 }
 
@@ -3044,7 +3076,6 @@ var viewEnterHooks = {
 function openTab(view, opts) {
   opts = opts || {}
   if (!isAllowedView(view)) return
-  if (view === "admin" && !isSuperAdmin()) view = "workspace"
   state.activeView = view
   state.activeSubTab = null
   _saveScoped(viewStorageKey, view)
@@ -3590,7 +3621,9 @@ var COCKPIT_STATUS_LABELS = {
   pending: "待决策",
   approved: "已同意",
   rejected: "已驳回",
+  changes_requested: "需修改",
   regenerating: "重新生成中",
+  superseded: "已替代",
 }
 var COCKPIT_PRESET_ENTRIES = [
   { title: "新员工入职手册", desc: "入职流程与制度", tone: "app-blue" },
@@ -3816,6 +3849,7 @@ function normalizeCockpitDecision(item) {
         : rawStatus
   return {
     id: item.id,
+    taskId: item.task_id || item.taskId || null,
     title: item.title || item.name || "未命名决策",
     summary: item.summary || item.description || item.content || "",
     action:
@@ -3838,8 +3872,21 @@ function normalizeCockpitDecision(item) {
     status: COCKPIT_STATUS_LABELS[status] ? status : "pending",
     approvedAt: item.approvedAt || item.approved_at || "",
     rejectedAt: item.rejectedAt || item.rejected_at || "",
+    regenerationRunId:
+      item.regenerationRunId || item.regeneration_run_id || null,
     rejectionReason:
       item.rejectionReason || item.rejection_reason || item.reject_reason || "",
+  }
+}
+
+function normalizeCockpitPipelineTask(item) {
+  return {
+    id: item.id,
+    name: item.title || item.name || "未命名定时任务",
+    schedule: item.schedule || "",
+    timezone: item.timezone || "Asia/Shanghai",
+    nextRunAt: item.next_run_at || item.nextRunAt || "",
+    status: item.status || "ready",
   }
 }
 
@@ -3860,6 +3907,7 @@ function setCockpitDecisionDemoFallback(error) {
   state.cockpitDecisions = COCKPIT_SAMPLE_DECISIONS.map((item) =>
     normalizeCockpitDecision(item),
   )
+  state.cockpitPipelineTasks = []
   renderCockpitScheduledTasks()
   renderCockpitDecisions()
 }
@@ -3869,6 +3917,7 @@ function setCockpitDecisionUnavailable(error) {
   state.cockpitDecisionError =
     error && error.message ? error.message : "后端决策接口不可用"
   state.cockpitDecisions = []
+  state.cockpitPipelineTasks = []
   renderCockpitScheduledTasks()
   renderCockpitDecisions()
 }
@@ -3884,13 +3933,27 @@ async function fetchCockpitDecisions() {
     return
   }
   if (_cockpitDecisionFetchPromise) return _cockpitDecisionFetchPromise
+  var pipelineService = getAppRuntimeService("pipeline")
+  var tasksPromise =
+    pipelineService && pipelineService.listTasks && isLoggedIn()
+      ? pipelineService
+          .listTasks({ limit: 50 })
+          .catch((error) => {
+            console.warn("Cockpit scheduled tasks unavailable.", error)
+            return { items: [] }
+          })
+      : Promise.resolve({ items: [] })
   _cockpitDecisionFetchPromise = dashboardService
     .listDecisions({ limit: 50 })
-    .then((payload) => {
+    .then((payload) => Promise.all([payload, tasksPromise]))
+    .then(([payload, taskPayload]) => {
       state.cockpitDecisionContractsAvailable = true
       state.cockpitDecisionError = ""
       state.cockpitDecisions = getDecisionItems(payload).map(
         normalizeCockpitDecision,
+      )
+      state.cockpitPipelineTasks = getDecisionItems(taskPayload).map(
+        normalizeCockpitPipelineTask,
       )
       renderCockpitScheduledTasks()
       renderCockpitDecisions()
@@ -3937,18 +4000,42 @@ function renderDecisionStatusDetails(item) {
       (item.rejectedAt ? " · " + formatDecisionTime(item.rejectedAt) : "")
     )
   }
-  if (item.status === "regenerating") return "后端正在根据驳回意见重新生成"
+  if (item.status === "regenerating") {
+    return item.rejectionReason || "后端正在根据驳回意见重新生成"
+  }
   return ""
 }
 
 function getCockpitScheduledTasks() {
   var tasksByName = new Map()
+  state.cockpitPipelineTasks.forEach((task) => {
+    tasksByName.set("task:" + String(task.id), {
+      taskId: task.id,
+      name: task.name,
+      schedule: task.schedule,
+      timezone: task.timezone,
+      nextRunAt: task.nextRunAt,
+      taskStatus: task.status,
+      total: 0,
+      pending: 0,
+      regenerating: 0,
+      latestGeneratedAt: "",
+    })
+  })
   state.cockpitDecisions.forEach((decision) => {
     var taskName = decision.sourceTask || "未标注来源任务"
+    var taskKey = decision.taskId
+      ? "task:" + String(decision.taskId)
+      : "name:" + taskName
     var existing =
-      tasksByName.get(taskName) ||
+      tasksByName.get(taskKey) ||
       {
+        taskId: decision.taskId || null,
         name: taskName,
+        schedule: "",
+        timezone: "Asia/Shanghai",
+        nextRunAt: "",
+        taskStatus: "ready",
         total: 0,
         pending: 0,
         regenerating: 0,
@@ -3965,7 +4052,7 @@ function getCockpitScheduledTasks() {
     ) {
       existing.latestGeneratedAt = decision.generatedAt
     }
-    tasksByName.set(taskName, existing)
+    tasksByName.set(taskKey, existing)
   })
   return Array.from(tasksByName.values()).sort((left, right) => {
     return (
@@ -3990,7 +4077,9 @@ function renderCockpitScheduledTasks() {
         ? task.pending + " 条待决策"
         : task.regenerating
           ? task.regenerating + " 条重新生成中"
-          : "结果已同步"
+          : task.total
+            ? "结果已同步"
+            : "等待首次执行"
       var statusClass = task.pending
         ? "pending"
         : task.regenerating
@@ -4007,7 +4096,9 @@ function renderCockpitScheduledTasks() {
         "</span></div>" +
         '<div class="cockpit-scheduled-task-meta"><span>产出结果 ' +
         task.total +
-        " 条</span><span>最近生成 " +
+        " 条</span><span>计划 " +
+        escapeHTML(task.schedule || "未设置") +
+        "</span><span>最近生成 " +
         escapeHTML(formatDecisionTime(task.latestGeneratedAt) || "暂无记录") +
         "</span></div>" +
         "</article>"
@@ -4042,21 +4133,13 @@ function openCockpitScheduledTaskBoard() {
 }
 
 function getCockpitDecisionReasonType(reason) {
-  var trimmed = String(reason || "").trim()
-  if (trimmed === "暂无需求") return "no_need"
-  if (trimmed === "其他情况") return "other"
+  // Every rejection is a correction request: rerun the same task with the
+  // user's reason appended to its execution prompt.
   return "regenerate"
 }
 
 function buildCockpitDecisionRejectPayload(reason) {
-  var reasonType = getCockpitDecisionReasonType(reason)
-  if (reasonType === "no_need") {
-    return { reason: reason, reason_type: "no_need" }
-  }
-  if (reasonType === "other") {
-    return { reason: reason, reason_type: "other" }
-  }
-  return { reason: reason, reason_type: "regenerate" }
+  return { reason: String(reason || "").trim(), reason_type: "regenerate" }
 }
 
 function renderCockpitDecisionItem(item, options) {
@@ -4163,7 +4246,11 @@ function bindCockpitDecisionActions(root) {
     }
   })
   root.querySelectorAll("[data-decision-reject-submit]").forEach((button) => {
-    button.onclick = () => rejectCockpitDecision(button.dataset.decisionRejectSubmit)
+    button.onclick = () =>
+      rejectCockpitDecision(
+        button.dataset.decisionRejectSubmit,
+        button.closest(".cockpit-decision-item"),
+      )
   })
   root.querySelectorAll("[data-decision-reject-cancel]").forEach((button) => {
     button.onclick = () => {
@@ -4171,6 +4258,80 @@ function bindCockpitDecisionActions(root) {
       renderCockpitDecisions()
     }
   })
+}
+
+function closeCockpitDecisionDrawer() {
+  var drawer = $("#cockpitDecisionDrawer")
+  if (!drawer) return
+  if (drawer._onKeyDown) {
+    document.removeEventListener("keydown", drawer._onKeyDown)
+  }
+  var lastFocus = drawer._lastFocus
+  drawer.remove()
+  document.body.classList.remove("drawer-open")
+  if (lastFocus && typeof lastFocus.focus === "function") {
+    try {
+      lastFocus.focus()
+    } catch (_) {
+      // The trigger may have been removed during a dashboard refresh.
+    }
+  }
+}
+
+function renderCockpitDecisionDrawer() {
+  var drawer = $("#cockpitDecisionDrawer")
+  if (!drawer) return
+  var list = drawer.querySelector("[data-cockpit-decision-drawer-list]")
+  if (!list) return
+  var filteredItems = getFilteredCockpitDecisions()
+  var emptyText =
+    state.cockpitDecisionError ||
+    (state.cockpitDecisionFilter === "all"
+      ? "暂无智能决策"
+      : "当前筛选下暂无决策")
+  list.innerHTML = filteredItems.length
+    ? '<div class="cockpit-decision-full-list">' +
+      filteredItems.map((item) => renderCockpitDecisionItem(item)).join("") +
+      "</div>"
+    : '<div class="cockpit-decision-empty">' + escapeHTML(emptyText) + "</div>"
+  bindCockpitDecisionActions(list)
+}
+
+function openCockpitDecisionDrawer() {
+  if ($("#cockpitDecisionDrawer")) {
+    renderCockpitDecisionDrawer()
+    return
+  }
+  var drawer = document.createElement("div")
+  drawer.id = "cockpitDecisionDrawer"
+  drawer.className = "drawer-overlay cockpit-decision-drawer show"
+  drawer.innerHTML =
+    '<div class="drawer-panel" role="dialog" aria-modal="true" aria-labelledby="cockpitDecisionDrawerTitle">' +
+    '<div class="drawer-header"><h2 class="drawer-title" id="cockpitDecisionDrawerTitle">全部智能决策</h2>' +
+    '<button class="drawer-close" type="button" data-cockpit-decision-drawer-close aria-label="关闭">关闭</button>' +
+    "</div>" +
+    '<div class="drawer-body" data-cockpit-decision-drawer-list></div>' +
+    "</div>"
+  drawer._lastFocus = document.activeElement
+  drawer._onKeyDown = (event) => {
+    if (event.key === "Escape") {
+      event.preventDefault()
+      closeCockpitDecisionDrawer()
+    }
+  }
+  drawer.addEventListener("click", (event) => {
+    if (event.target === drawer) closeCockpitDecisionDrawer()
+  })
+  drawer
+    .querySelector("[data-cockpit-decision-drawer-close]")
+    .addEventListener("click", closeCockpitDecisionDrawer)
+  document.body.appendChild(drawer)
+  document.body.classList.add("drawer-open")
+  document.addEventListener("keydown", drawer._onKeyDown)
+  renderCockpitDecisionDrawer()
+  window.setTimeout(() => {
+    drawer.querySelector("[data-cockpit-decision-drawer-close]")?.focus()
+  }, 0)
 }
 
 function renderCockpitDecisions() {
@@ -4188,6 +4349,15 @@ function renderCockpitDecisions() {
       previewItems.map((item) => renderCockpitDecisionItem(item)).join("") +
       "</div>"
     : '<div class="cockpit-decision-empty">' + escapeHTML(emptyText) + "</div>"
+  var headerActions = $("#cockpitDecisionHeaderActions")
+  if (headerActions) {
+    headerActions.innerHTML =
+      filteredItems.length > COCKPIT_DECISION_PREVIEW_LIMIT
+        ? '<button class="card-link" id="cockpitDecisionViewAll" type="button">查看全部</button>'
+        : ""
+    var viewAllButton = $("#cockpitDecisionViewAll")
+    if (viewAllButton) viewAllButton.onclick = openCockpitDecisionDrawer
+  }
   $$(".cockpit-decision-filters [data-decision-filter]").forEach((button) =>
     button.classList.toggle(
       "active",
@@ -4195,6 +4365,7 @@ function renderCockpitDecisions() {
     ),
   )
   bindCockpitDecisionActions(list)
+  renderCockpitDecisionDrawer()
 }
 
 function getCockpitDecisionUpdateOrFallback(updated, fallbackPatch) {
@@ -4232,8 +4403,10 @@ async function approveCockpitDecision(decisionId) {
   }
 }
 
-async function rejectCockpitDecision(decisionId) {
-  var input = document.querySelector(
+async function rejectCockpitDecision(decisionId, decisionElement) {
+  var input = decisionElement?.querySelector(
+    '[data-decision-reason-input="' + CSS.escape(String(decisionId)) + '"]',
+  ) || document.querySelector(
     '[data-decision-reason-input="' + CSS.escape(String(decisionId)) + '"]',
   )
   var reason = (input?.value || "").trim()
@@ -4249,20 +4422,23 @@ async function rejectCockpitDecision(decisionId) {
   var payload = buildCockpitDecisionRejectPayload(reason)
   try {
     var updated = await dashboardService.rejectDecision(decisionId, payload)
-    replaceCockpitDecision(
-      getCockpitDecisionUpdateOrFallback(updated, {
+    const decision = getCockpitDecisionUpdateOrFallback(updated, {
         id: decisionId,
-        status: payload.reason_type === "regenerate" ? "regenerating" : "rejected",
+        status: "regenerating",
         rejectionReason: reason,
         rejectedAt: new Date().toISOString(),
-      }),
-    )
+      })
+    replaceCockpitDecision({ ...decision, status: "regenerating" })
     state.cockpitDecisionRejectingId = null
-    showToast(
-      payload.reason_type === "regenerate"
-        ? "已提交驳回，后端将重新生成"
-        : "已驳回并归档",
-    )
+    if (decision.regenerationRunId || decision.regeneration_run_id) {
+      showToast("已提交驳回，重新生成中")
+      void waitForPipelineRegeneration(
+        decisionId,
+        decision.regenerationRunId || decision.regeneration_run_id,
+      )
+    } else {
+      showToast("已驳回并归档")
+    }
   } catch (error) {
     console.warn("Cockpit decision rejection failed.", error)
     showToast(error.message || "驳回决策失败")
@@ -7146,6 +7322,9 @@ async function fetchChatSessionsFromBackend() {
         )
         session.messages = []
       }
+      session.requestGeneration = 0
+      session.activeAbortController = null
+      session.activeChatRunId = null
       state.chatSessions.sessions.push(session)
     }
     if (
@@ -7173,6 +7352,10 @@ function createLocalChatSession(title = "") {
     surface: "agent",
     createdAt: `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")} ${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`,
     updatedAt: "",
+    requestGeneration: 0,
+    activeAbortController: null,
+    activeChatRunId: null,
+    activeStopPromise: null,
   }
   state.chatSessions.sessions.push(session)
   state.chatSessions.activeSessionId = session.id
@@ -7204,6 +7387,10 @@ async function createChatSessionInternal(options = {}) {
       }
       session.title = title || session.title
       session.messages = Array.isArray(session.messages) ? session.messages : []
+      session.requestGeneration = 0
+      session.activeAbortController = null
+      session.activeChatRunId = null
+      session.activeStopPromise = null
       state.chatSessions.sessions = state.chatSessions.sessions.filter(
         (existing) => existing.id !== session.id,
       )
@@ -7249,7 +7436,17 @@ async function createChatSession(options = {}) {
 }
 
 function switchChatSession(id) {
+  const previous = getActiveSession()
+  if (previous && previous.id !== id) {
+    previous.requestGeneration = (previous.requestGeneration || 0) + 1
+    if (previous.activeAbortController) previous.activeAbortController.abort()
+    previous.activeAbortController = null
+    previous.activeChatRunId = null
+  }
   state.chatSessions.activeSessionId = id
+  state.isStreaming = Boolean(getActiveSession()?.activeAbortController)
+  state.activeAbortController = getActiveSession()?.activeAbortController || null
+  state.activeChatRunId = getActiveSession()?.activeChatRunId || null
   saveChatSessions()
   renderChatSessions()
   renderChatTranscript()
@@ -7313,7 +7510,7 @@ function getActiveSession() {
   return sessions.find((s) => s.id === activeSessionId) || null
 }
 
-function renderPlatformActionHTML(action) {
+function renderPlatformActionHTML(action, messageId) {
   if (!action) return ""
   const message = action.message || action.status || "平台操作已处理"
   const identifiers = [
@@ -7321,7 +7518,155 @@ function renderPlatformActionHTML(action) {
     action.run_id ? `运行 #${action.run_id}` : "",
   ].filter(Boolean)
   const metadata = identifiers.length ? `（${identifiers.join("，")}）` : ""
-  return `<div class="chat-tool-status chat-platform-action" data-testid="chat-platform-action" role="status">平台操作：${escapeHTML(message)}${escapeHTML(metadata)}</div>`
+  const draft = action.draft && typeof action.draft === "object" ? action.draft : null
+  const draftSummary = draft
+    ? `<div class="chat-approval-detail">${[
+        draft.title ? `任务：${draft.title}` : "",
+        draft.schedule ? `计划：${draft.schedule}` : "",
+        draft.timezone ? `时区：${draft.timezone}` : "",
+        draft.output_format ? `输出：${draft.output_format}` : "",
+        draft.approval_required === false ? "无需审批" : "审批人：admin（创建者）",
+      ]
+        .filter(Boolean)
+        .map((item) => escapeHTML(item))
+        .join("<br>")}</div>`
+    : ""
+  const canConfirm = draft && action.status === "draft" && !action.pending
+  const controls = canConfirm
+    ? `<div class="chat-approval-actions"><button type="button" class="chat-approval-btn once" data-platform-action-message="${escapeHTML(String(messageId || ""))}" data-platform-action-choice="confirm">确认创建</button><button type="button" class="chat-approval-btn deny" data-platform-action-message="${escapeHTML(String(messageId || ""))}" data-platform-action-choice="cancel">取消</button></div>`
+    : ""
+  return `<div class="chat-tool-status chat-platform-action" data-testid="chat-platform-action" role="status">平台操作：${escapeHTML(message)}${escapeHTML(metadata)}${draftSummary}${controls}</div>`
+}
+
+async function waitForPipelineRegeneration(decisionId, regenerationRunId) {
+  const pipelineService = getAppRuntimeService("pipeline")
+  if (!pipelineService || !pipelineService.getRun || !regenerationRunId) return
+  const maxAttempts = 120
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+    try {
+      const run = await pipelineService.getRun(regenerationRunId)
+      const status = String(run?.status || "").toLowerCase()
+      if (status === "completed") {
+        await fetchCockpitDecisions()
+        showToast("已根据驳回理由生成新的待决策结果")
+        return
+      }
+      if (status === "failed" || status === "cancelled") {
+        replaceCockpitDecision({
+          id: decisionId,
+          status: "regenerating",
+          rejectionReason:
+            "重新生成失败：" + (run?.error_code || run?.errorCode || "请重试"),
+          regenerationRunId,
+        })
+        showToast("重新生成失败，请稍后重试")
+        return
+      }
+    } catch (error) {
+      console.warn("Pipeline regeneration status request failed.", error)
+    }
+    await new Promise((resolve) => setTimeout(resolve, 1000))
+  }
+  replaceCockpitDecision({
+    id: decisionId,
+    status: "regenerating",
+    rejectionReason: "重新生成仍在处理中，请稍后刷新",
+    regenerationRunId,
+  })
+}
+
+function findPlatformActionMessage(messageId) {
+  var session = getActiveSession()
+  if (!session || !Array.isArray(session.messages)) return null
+  return session.messages.find((item) => String(item.id || "") === String(messageId)) || null
+}
+
+async function refreshCockpitAfterPipelineAction(runId) {
+  await fetchCockpitDecisions()
+  if (!runId) return
+  var pipelineService = getAppRuntimeService("pipeline")
+  if (!pipelineService || !pipelineService.getRun) return
+  for (var attempt = 0; attempt < 30; attempt += 1) {
+    try {
+      var run = await pipelineService.getRun(runId)
+      var status = String(run?.status || "").toLowerCase()
+      if (["completed", "failed", "cancelled", "missed"].includes(status)) {
+        await fetchCockpitDecisions()
+        return
+      }
+    } catch (error) {
+      console.warn("Cockpit pipeline refresh failed.", error)
+      return
+    }
+    await new Promise((resolve) => setTimeout(resolve, 1000))
+  }
+}
+
+async function resolvePlatformAction(messageId, choice) {
+  var message = findPlatformActionMessage(messageId)
+  var action = message && message.platformAction
+  if (!action || !action.draft || action.status !== "draft" || action.pending) return
+  if (choice === "cancel") {
+    message.platformAction = { status: "cancelled", message: "已取消创建定时任务。" }
+    renderChatTranscript()
+    return
+  }
+  var pipelineService = getAppRuntimeService("pipeline")
+  if (!pipelineService || !pipelineService.createTask || !pipelineService.runTask) {
+    showToast("定时任务服务不可用")
+    return
+  }
+  action.pending = true
+  action.message = "正在创建定时任务…"
+  renderChatTranscript()
+  var task
+  try {
+    task = await pipelineService.createTask({ ...action.draft, confirmed: true })
+  } catch (error) {
+    action.pending = false
+    action.message = error?.message || "创建定时任务失败"
+    renderChatTranscript()
+    return
+  }
+  // Creation is a visible milestone: sync the cockpit before the optional
+  // immediate run starts so the task board never appears empty.
+  message.platformAction = {
+    status: "created",
+    message: "已创建定时任务，正在同步定时任务看板。",
+    task_id: task.id,
+  }
+  renderChatTranscript()
+  await refreshCockpitAfterPipelineAction()
+  if (!action.run_now) {
+    message.platformAction = {
+      status: "created",
+      message: "已创建定时任务。",
+      task_id: task.id,
+    }
+    renderChatTranscript()
+    void refreshCockpitAfterPipelineAction()
+    return
+  }
+  try {
+    var run = await pipelineService.runTask(task.id)
+    message.platformAction = {
+      status: run.status || "queued",
+      message: "已创建定时任务，本次立即执行已入队。",
+      task_id: task.id,
+      run_id: run.id,
+    }
+    void refreshCockpitAfterPipelineAction(run.id)
+  } catch (error) {
+    message.platformAction = {
+      status: "failed",
+      message: error?.message || "任务已创建，但立即执行失败。",
+      task_id: task.id,
+    }
+    void refreshCockpitAfterPipelineAction()
+  } finally {
+    pipelineService.releaseRunIntent?.(String(task.id))
+    renderChatTranscript()
+  }
 }
 
 function renderChatTranscript() {
@@ -7405,7 +7750,7 @@ function renderChatTranscript() {
           : ""
       const platformActionHTML =
         m.role === "assistant" && m.platformAction
-          ? renderPlatformActionHTML(m.platformAction)
+          ? renderPlatformActionHTML(m.platformAction, m.id)
           : ""
       const toolStatusHTML =
         m.role === "assistant" && m.toolStatus && !m.platformAction
@@ -7581,7 +7926,7 @@ function updateStreamingAssistantMessage(message) {
       : ""
   // Keep partial Markdown as stable plain text. Rendering the whole transcript
   // for every token causes visible flashing and repeatedly rebuilds focus state.
-  const platformActionHTML = renderPlatformActionHTML(message.platformAction)
+  const platformActionHTML = renderPlatformActionHTML(message.platformAction, message.id)
   const toolStatusHTML = message.toolStatus && !message.platformAction
     ? `<div class="chat-tool-status">工具执行中：${escapeHTML(message.toolStatus)}</div>`
     : ""
@@ -7602,9 +7947,11 @@ function updateChatSendButton() {
   const input = $("#chatInput")
   if (!btn || !input) return
   const hasText = input.value.trim().length > 0
-  btn.disabled = !hasText
+  btn.disabled = !state.isStreaming && !hasText
   btn.classList.toggle("stop", state.isStreaming)
-  btn.classList.toggle("loading", state.isStreaming)
+  btn.classList.remove("loading")
+  btn.setAttribute("aria-label", state.isStreaming ? "暂停生成" : "发送")
+  btn.setAttribute("title", state.isStreaming ? "暂停生成" : "发送")
 }
 
 async function sendChatMessage(options = {}) {
@@ -7691,6 +8038,9 @@ async function sendChatMessage(options = {}) {
   }
   session.messages.push(assistantMsg)
 
+  const requestGeneration = (session.requestGeneration || 0) + 1
+  session.requestGeneration = requestGeneration
+
   input.value = ""
   autoResizeChatInput()
   state.isStreaming = true
@@ -7722,7 +8072,10 @@ async function sendChatMessage(options = {}) {
     .filter(Boolean)
 
   // Create AbortController for this request
-  state.activeAbortController = new AbortController()
+  session.activeAbortController = new AbortController()
+  session.activeChatRunId = null
+  session.activeStopPromise = null
+  state.activeAbortController = session.activeAbortController
   state.activeChatRunId = null
 
   // Clear empty state
@@ -7742,9 +8095,9 @@ async function sendChatMessage(options = {}) {
         links: messageLinks,
         metadata: { mode, command_mode: true },
       },
-      { signal: state.activeAbortController.signal },
+      { signal: session.activeAbortController.signal },
     )
-    await readChatSseResponse(response, assistantMsg)
+    await readChatSseResponse(response, assistantMsg, session, requestGeneration)
     assistantMsg.createdAt = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`
   } catch (error) {
     if (error.name === "AbortError") {
@@ -7753,7 +8106,7 @@ async function sendChatMessage(options = {}) {
     } else {
       console.warn("Knowledge chat failed.", error)
       const status = error && error.status
-      if (status === 401) {
+      if (status === 401 && !_singleUserMode) {
         clearAuth()
         showLoginOverlay()
         assistantMsg.content = "登录已过期，请重新登录。"
@@ -7761,6 +8114,8 @@ async function sendChatMessage(options = {}) {
         assistantMsg.content = "当前账号没有执行此操作的权限。"
       } else if (status === 409) {
         assistantMsg.content = "当前会话已有进行中的请求，请停止或稍后重试。"
+      } else if (status === 429) {
+        assistantMsg.content = "运行额度被未完成会话占用，请等待会话结束后重试。"
       } else if (status >= 500) {
         assistantMsg.content = "后端服务异常（HTTP " + status + "），请稍后重试。"
       } else {
@@ -7771,9 +8126,15 @@ async function sendChatMessage(options = {}) {
     assistantMsg.createdAt = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`
   }
 
-  state.isStreaming = false
-  state.activeAbortController = null
-  state.activeChatRunId = null
+  if (session.activeStopPromise) await session.activeStopPromise
+  if (session.requestGeneration === requestGeneration) {
+    session.activeAbortController = null
+    session.activeChatRunId = null
+    session.activeStopPromise = null
+    state.isStreaming = false
+    state.activeAbortController = null
+    state.activeChatRunId = null
+  }
   state.aiContext[session.id] = []
   saveChatSessions()
   saveAiContext()
@@ -7786,14 +8147,18 @@ async function sendChatMessage(options = {}) {
 function stopChatStream() {
   const sessionId = state.chatSessions.activeSessionId
   const runId = state.activeChatRunId
+  const session = getActiveSession()
+  if (session?.activeStopPromise) return
   if (state.activeAbortController) {
     state.activeAbortController.abort()
   }
   var chatService = getAppRuntimeService("chat")
-  if (chatService && chatService.stopRun && sessionId && runId) {
-    chatService.stopRun(sessionId, runId).catch((error) => {
-      console.warn("Chat stop contract request failed.", error)
-    })
+  if (chatService && chatService.stopRun && sessionId) {
+    session.activeStopPromise = chatService
+      .stopRun(sessionId, runId || "active")
+      .catch((error) => {
+        console.warn("Chat stop contract request failed.", error)
+      })
   }
 }
 
@@ -8294,7 +8659,7 @@ function refreshCustomWebsiteTabs() {
 function createCustomWebsiteMenuButton(site) {
   var button = document.createElement("button")
   button.type = "button"
-  button.className = "side-link"
+  button.className = "side-link custom-website-link"
   button.dataset.customWebsiteId = site.id
   button.title = site.name
   button.classList.toggle(
@@ -9218,6 +9583,16 @@ function bindChatWorkbenchEvents() {
   document.documentElement.dataset.chatWorkbenchEventsBound = "true"
   document.addEventListener("click", (event) => {
     const target = event.target instanceof Element ? event.target : null
+    const platformActionButton = target && target.closest("[data-platform-action-message]")
+    if (platformActionButton) {
+      const messageId = platformActionButton.dataset.platformActionMessage
+      const choice = platformActionButton.dataset.platformActionChoice
+      if (messageId && (choice === "confirm" || choice === "cancel")) {
+        platformActionButton.disabled = true
+        void resolvePlatformAction(messageId, choice)
+      }
+      return
+    }
     const approvalButton = target && target.closest("[data-approval-run]")
     if (approvalButton) {
       const runId = approvalButton.dataset.approvalRun

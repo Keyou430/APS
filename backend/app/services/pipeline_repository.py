@@ -129,7 +129,6 @@ class PipelineRepository:
             .where(
                 DashboardDecision.id == decision_id,
                 PipelineTask.organization_id == self.organization_id,
-                PipelineTask.user_id == self.user_id,
             )
             .with_for_update()
         )
@@ -145,7 +144,6 @@ class PipelineRepository:
             .join(PipelineTask, PipelineTask.id == DashboardDecision.task_id)
             .where(
                 PipelineTask.organization_id == self.organization_id,
-                PipelineTask.user_id == self.user_id,
             )
         )
         if status is not None:

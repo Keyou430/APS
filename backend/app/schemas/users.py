@@ -17,6 +17,7 @@ class UserCreate(BaseModel):
     )
     password: str = Field(min_length=8, max_length=128, examples=["change-me-123"])
     email: EmailStr = Field(examples=["alice@example.com"])
+    display_name: str | None = Field(default=None, max_length=255)
     role: RoleName = "user"
 
 
@@ -28,6 +29,7 @@ class UserUpdate(BaseModel):
         pattern=r"^[A-Za-z0-9._-]+$",
     )
     email: EmailStr | None = None
+    display_name: str | None = Field(default=None, max_length=255)
     is_active: bool | None = None
 
 

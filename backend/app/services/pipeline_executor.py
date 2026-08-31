@@ -3,10 +3,12 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from typing import Protocol
 from uuid import uuid4
+from zoneinfo import ZoneInfo
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
@@ -27,6 +29,7 @@ from app.services.hermes_client import (
     hermes_knowledge_client,
 )
 from app.services.object_storage import LocalPrivateObjectStorage
+from app.services.pipeline_approval import enqueue_pending_decision_notifications
 from app.services.pipeline_scheduler import schedule_due_pipeline_tasks
 from app.services.web_evidence import (
     WebEvidence,
@@ -51,8 +54,14 @@ class PipelineTaskExecutor(Protocol):
 
 
 class HermesPipelineExecutor:
-    def __init__(self, router: HermesClientRouter) -> None:
+    def __init__(
+        self,
+        router: HermesClientRouter,
+        *,
+        now_provider: Callable[[], datetime] | None = None,
+    ) -> None:
         self._router = router
+        self._now_provider = now_provider or (lambda: datetime.now(UTC))
 
     async def execute(self, task: PipelineTask) -> PipelineExecutionResult:
         session_id = f"pipeline-task-{task.id}-{uuid4().hex}"
@@ -65,13 +74,29 @@ class HermesPipelineExecutor:
         )
         prompt = (
             "Execute the following platform task. Return exactly one JSON object with keys "
-            "title, markdown, summary, and sources. sources must be an array whose objects "
-            "contain an exact url copied from an actual web search tool result of this run. "
-            "The platform will attach provider-owned title and timestamp metadata; do not "
-            "invent source metadata. Every url must come from "
-            "an actual web search tool result of this run. Do not claim a web trend without "
-            "a source. Task:\n" + task.prompt
+            "title, markdown, summary, and sources. "
         )
+        if task.task_type == "web_research":
+            prompt += (
+                "sources must be an array whose objects contain an exact url copied from an "
+                "actual web search tool result of this run. The platform will attach "
+                "provider-owned title and timestamp metadata; do not invent source metadata. "
+                "Every url must come from an actual web search tool result of this run. Do not "
+                "claim a web trend without a source. "
+            )
+        else:
+            prompt += "This is a non-web task, so sources must be an empty array. "
+            if _is_feishu_weekly_task_report(task.prompt):
+                prompt += _feishu_weekly_task_report_instruction(self._now_provider())
+            elif "飞书" in task.prompt and any(term in task.prompt for term in ("待办", "任务")):
+                prompt += (
+                    'Read Feishu tasks by calling lark_cli_execute exactly with argv ["task", '
+                    '"+get-my-tasks"]. Do not call lark_cli_schema or lark_cli_help. Do not add '
+                    "--as, --format, --json, or --jq because the controlled wrapper adds identity "
+                    "and JSON formatting. Summarize the returned tasks without changing any "
+                    "Feishu data. "
+                )
+        prompt += "Task:\n" + task.prompt
         body = await self._router.client_for("agent").create_openai_response(
             prompt, context=context
         )
@@ -407,8 +432,10 @@ async def _complete_run(
         )
         db.add(output)
         await db.flush()
-        db.add(
-            DashboardDecision(
+        # Scheduled runs always surface a decision card so their results are
+        # visible in Smart Decisions. Manual runs retain the approval toggle.
+        if run.trigger_kind == "scheduled" or task.approval_required:
+            decision = DashboardDecision(
                 organization_id=task.organization_id,
                 user_id=task.user_id,
                 task_id=task.id,
@@ -419,7 +446,11 @@ async def _complete_run(
                 title=result.title,
                 summary=result.summary,
             )
-        )
+            db.add(decision)
+            await db.flush()
+            await enqueue_pending_decision_notifications(
+                db, task=task, decision=decision
+            )
         run.status = "completed"
         run.completed_at = datetime.now(UTC)
         run.lease_expires_at = None
@@ -450,6 +481,11 @@ async def _execute_claimed_pipeline_run(
     if task is None or membership is None:
         await _mark_failed(session_factory, run_id, worker_id, "owner_membership_inactive")
         return
+    original_prompt = task.prompt
+    if run is not None and run.prompt_override:
+        # Feedback is scoped to this run. Restore the persisted task prompt
+        # after execution so regeneration never rewrites the task definition.
+        task.prompt = run.prompt_override
     try:
         result = await executor.execute(task)
     except HermesUpstreamError:
@@ -463,7 +499,36 @@ async def _execute_claimed_pipeline_run(
             code = "structured_output_invalid"
         await _mark_failed(session_factory, run_id, worker_id, code)
         return
+    finally:
+        task.prompt = original_prompt
     await _complete_run(session_factory, run_id=run_id, worker_id=worker_id, result=result)
+
+
+def _is_feishu_weekly_task_report(prompt: str) -> bool:
+    return (
+        "飞书" in prompt
+        and "周报" in prompt
+        and any(term in prompt for term in ("待办", "任务"))
+    )
+
+
+def _feishu_weekly_task_report_instruction(now: datetime) -> str:
+    """Build the fixed data contract for a Feishu task weekly report."""
+    local_now = now.astimezone(ZoneInfo("Asia/Shanghai"))
+    week_start = (local_now - timedelta(days=local_now.weekday())).date()
+    week_end = week_start + timedelta(days=6)
+    return (
+        "This is a Feishu task weekly report. Its reporting interval is the current "
+        f"natural week in Asia/Shanghai: {week_start} 00:00:00 through "
+        f"{week_end} 23:59:59. Read Feishu tasks by calling lark_cli_execute exactly "
+        'with argv ["task", "+get-my-tasks", "--created_at", '
+        f'"{week_start}", "--page-all"]. Do not call lark_cli_schema or '
+        "lark_cli_help. Do not add --as, --format, --json, or --jq because the "
+        "controlled wrapper adds identity and JSON formatting. Do not pass "
+        "--complete=false: include both completed and incomplete tasks. Summarize "
+        "only tasks whose created time is within the reporting interval, and state "
+        "that the report is counted by task creation time. Do not change any Feishu data. "
+    )
 
 
 async def run_pipeline_run_now(

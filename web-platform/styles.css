@@ -469,6 +469,28 @@ color: var(--blue);
 background: var(--blue-soft);
 font-weight: 700;
     }
+    .custom-website-link {
+min-height: 30px;
+padding-left: 20px;
+color: #8b97a8;
+font-size: 12px;
+font-weight: 400;
+    }
+    .custom-website-link:hover { color: #596b83; background: #f5f7fa; }
+    .custom-website-link.active { color: #596b83; background: #eef3f8; font-weight: 600; }
+    .custom-website-add {
+width: 28px;
+min-height: 28px;
+margin: 2px 0 2px 16px;
+padding: 0;
+display: grid;
+place-items: center;
+color: #9aa5b5;
+    }
+    .custom-website-add .icon { width: 14px; height: 14px; }
+    .custom-website-add:hover { color: #596b83; background: #f5f7fa; }
+    .custom-website-add.active { color: #596b83; background: #eef3f8; font-weight: 400; }
+    .custom-website-add:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
     .sidebar-nav { flex: 1; overflow-y: auto; }
     .nav-item { margin-bottom: 2px; }
     .nav-row { display: flex; align-items: center; }
@@ -1080,6 +1102,8 @@ padding: 8px 9px;
     .cockpit-decision-list { padding: 12px 14px 14px; }
     .cockpit-decision-preview-grid { display: grid; grid-template-columns: repeat(5, minmax(150px, 1fr)); gap: 10px; }
     .cockpit-decision-full-list { display: grid; gap: 10px; }
+    .cockpit-decision-drawer .drawer-panel { width: min(900px, 94vw); }
+    .cockpit-decision-drawer .drawer-body { padding: 14px; }
     .cockpit-decision-item { min-width: 0; display: flex; flex-direction: column; gap: 8px; border: 1px solid var(--line); border-radius: 8px; background: #fff; padding: 12px; }
     .cockpit-decision-title { font-size: 13px; font-weight: 700; display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
     .cockpit-decision-title span:first-child { min-width: 0; overflow-wrap: anywhere; }
@@ -1845,6 +1869,15 @@ white-space: nowrap;
     .send-btn-circle:disabled .send-arrow { color: #d1d5db; }
     .send-btn-circle.stop { background: var(--red); }
     .send-btn-circle.stop:hover { background: #c0392b; }
+    .send-btn-circle.stop .send-arrow,
+    .send-btn-circle.stop .btn-spinner { display: none; }
+    .send-btn-circle.stop::after {
+      content: "";
+      width: 10px;
+      height: 10px;
+      border-radius: 1px;
+      background: #fff;
+    }
     .send-btn-circle .btn-spinner {
       display: none; position: absolute;
       width: 18px; height: 18px;
@@ -2265,6 +2298,8 @@ html { min-width: 0; font-size: 13px; }
 .module-sidebar .side-link small { display: revert; }
 .module-sidebar .nav-main { justify-content: flex-start; padding: 0 12px; }
 .module-sidebar .side-link { width: 100%; justify-content: flex-start; padding: 0 12px; margin: 0; }
+.module-sidebar .custom-website-link { padding-left: 20px; }
+.module-sidebar .custom-website-add { width: 28px; min-height: 28px; justify-content: center; margin: 2px 0 2px 16px; padding: 0; }
 .module-sidebar .sidebar-foot { justify-content: flex-start; padding: 12px 16px; }
 .module-sidebar .sidebar-name { display: revert; }
 .sidebar-resizer { display: none; }
@@ -2391,16 +2426,17 @@ body.react-route-active {
 overflow-x: hidden;
 overflow-y: auto;
     }
-body.react-route-active > .app-shell {
-display: none;
+body.react-route-active .app-shell {
+pointer-events: none;
     }
 body.react-route-active #reactAppRoot {
 display: block;
-width: 100vw;
-height: 100dvh;
 min-height: 100dvh;
-padding: 0;
+padding: calc(var(--topbar) + 50px) clamp(12px, 4vw, 32px) 28px;
 background: var(--page);
+    }
+body.react-route-active .app-frame {
+display: none;
     }
 .page-view {
 width: 100%;
@@ -2675,7 +2711,7 @@ flex-direction: column;
     }
 @media (max-width: 767px) {
 body.react-route-active #reactAppRoot {
-padding: 0;
+padding: calc(var(--topbar) + 50px) 10px 22px;
     }
 .page-view {
 gap: 10px;
@@ -3021,433 +3057,5 @@ max-height: 75dvh;
 @media (max-width: 520px) {
   .cockpit-scheduled-task-modal .cockpit-scheduled-task-list {
     grid-template-columns: 1fr;
-  }
-}
-
-/* React knowledge chat: compact controls and source review. */
-.knowledge-page .page-header-actions {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-.knowledge-page .button-link {
-  min-height: 34px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0 12px;
-  border: 1px solid var(--blue-line);
-  border-radius: 7px;
-  color: var(--blue);
-  background: #fff;
-  font-weight: 700;
-  text-decoration: none;
-}
-.knowledge-page .button-link:hover {
-  background: var(--blue-soft);
-}
-.knowledge-page .button-link:focus-visible {
-  outline: 3px solid rgba(37, 99, 217, .22);
-  outline-offset: 1px;
-}
-
-.chat-page {
-  min-width: 0;
-}
-.chat-page .page-header {
-  align-items: center;
-  flex-wrap: wrap;
-}
-.chat-page .page-header > div:first-child {
-  min-width: min(100%, 220px);
-  flex: 1 1 220px;
-}
-.chat-page .page-header > [role="group"] {
-  height: 34px;
-  display: grid;
-  grid-template-columns: repeat(2, minmax(96px, 1fr));
-  align-items: stretch;
-  padding: 2px;
-  border: 1px solid var(--line-strong);
-  border-radius: 7px;
-  background: #eef2f7;
-}
-.chat-page .page-header > [role="group"] button {
-  min-height: 28px;
-  border: 0;
-  border-radius: 5px;
-  padding: 0 10px;
-  color: var(--muted);
-  background: transparent;
-  white-space: nowrap;
-}
-.chat-page .page-header > [role="group"] button[aria-pressed="true"] {
-  color: var(--blue);
-  background: #fff;
-  box-shadow: 0 1px 2px rgba(21, 42, 77, .08);
-}
-
-.chat-page > section[aria-labelledby="knowledge-scope-title"] {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: end;
-  gap: 10px 14px;
-}
-.chat-page > section[aria-labelledby="knowledge-scope-title"] > h2,
-.chat-page > section[aria-labelledby="knowledge-scope-title"] > .error-message,
-.chat-page > section[aria-labelledby="knowledge-scope-title"] > fieldset + fieldset {
-  grid-column: 1 / -1;
-}
-.chat-page > section[aria-labelledby="knowledge-scope-title"] fieldset {
-  min-width: 0;
-  margin: 0;
-  padding: 0;
-  border: 0;
-}
-.chat-page > section[aria-labelledby="knowledge-scope-title"] legend {
-  margin-bottom: 7px;
-  color: var(--muted);
-  font-size: 12px;
-  font-weight: 700;
-}
-.chat-page > section[aria-labelledby="knowledge-scope-title"] fieldset:first-of-type {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  flex-wrap: wrap;
-}
-.chat-page > section[aria-labelledby="knowledge-scope-title"] fieldset:first-of-type legend {
-  width: 100%;
-}
-.chat-page > section[aria-labelledby="knowledge-scope-title"] label {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  min-width: 0;
-  color: var(--ink);
-  font-weight: 600;
-}
-.chat-page > section[aria-labelledby="knowledge-scope-title"] input[type="radio"],
-.chat-page > section[aria-labelledby="knowledge-scope-title"] input[type="checkbox"] {
-  width: 16px;
-  height: 16px;
-  min-width: 16px;
-  min-height: 16px;
-  margin: 0;
-  padding: 0;
-  accent-color: var(--blue);
-}
-.chat-page > section[aria-labelledby="knowledge-scope-title"] fieldset + fieldset {
-  padding-top: 10px;
-  border-top: 1px solid var(--line);
-}
-.chat-page > section[aria-labelledby="knowledge-scope-title"] fieldset + fieldset ul {
-  max-height: 208px;
-  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
-  gap: 2px 16px;
-  margin: 0;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  scrollbar-gutter: stable;
-}
-.chat-page > section[aria-labelledby="knowledge-scope-title"] fieldset + fieldset li {
-  min-height: 32px;
-  justify-content: flex-start;
-  padding: 5px 2px;
-  border: 0;
-  border-bottom: 1px solid var(--line);
-  border-radius: 0;
-  background: transparent;
-  overflow-wrap: anywhere;
-}
-
-.chat-page .chat-shell {
-  min-height: 360px;
-  display: grid;
-  grid-template-columns: minmax(170px, .26fr) minmax(0, 1fr);
-  padding: 0;
-  overflow: hidden;
-}
-.chat-page .chat-shell > aside {
-  min-width: 0;
-  padding: 14px 12px;
-  border-right: 1px solid var(--line);
-  background: #f8fafc;
-}
-.chat-page .chat-shell > aside ul {
-  grid-template-columns: 1fr;
-  gap: 3px;
-  margin-top: 10px;
-}
-.chat-page .chat-shell > aside li {
-  padding: 0;
-  border: 0;
-  border-radius: 0;
-  background: transparent;
-}
-.chat-page .chat-shell > aside button {
-  width: 100%;
-  justify-content: flex-start;
-  border-color: transparent;
-  background: transparent;
-  text-align: left;
-  overflow-wrap: anywhere;
-}
-.chat-page .chat-shell > aside button[aria-pressed="true"] {
-  color: var(--blue);
-  border-color: var(--blue-line);
-  background: var(--blue-soft);
-}
-.chat-page .chat-shell > .chat-transcript {
-  min-width: 0;
-  padding: 14px;
-  border: 0;
-  border-radius: 0;
-  background: transparent;
-  box-shadow: none;
-}
-.chat-page .chat-transcript article {
-  max-width: min(76ch, 92%);
-  margin-top: 12px;
-  overflow-wrap: anywhere;
-}
-.chat-page .chat-transcript article[data-role="user"] {
-  margin-left: auto;
-}
-.chat-page > form[aria-label="发送消息"] {
-  min-width: 0;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
-  gap: 8px;
-  align-items: end;
-  padding: 12px;
-  border-top: 1px solid var(--line);
-  background: var(--panel);
-}
-.chat-page > form[aria-label="发送消息"] > label,
-.chat-page > form[aria-label="发送消息"] > p {
-  grid-column: 1 / -1;
-}
-.chat-page > form[aria-label="发送消息"] textarea {
-  width: 100%;
-  min-width: 0;
-  min-height: 72px;
-  max-height: 220px;
-  resize: vertical;
-  padding: 9px 10px;
-  border: 1px solid var(--line-strong);
-  border-radius: 7px;
-  color: var(--ink);
-  background: #fff;
-}
-.chat-page .chat-attachment-control {
-  min-height: 34px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0 10px;
-  border: 1px solid var(--line-strong);
-  border-radius: 7px;
-  color: var(--blue);
-  background: #fff;
-  cursor: pointer;
-}
-.chat-page .chat-attachment-control:focus-within {
-  outline: 3px solid rgba(37, 99, 217, .22);
-  outline-offset: 1px;
-}
-.chat-page .chat-attachment-control input {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip-path: inset(50%);
-  white-space: nowrap;
-}
-.chat-page .chat-attachment-list {
-  grid-column: 1 / -1;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: 6px;
-  margin: 0;
-}
-.chat-page .chat-attachment-list li {
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 6px 8px;
-}
-.chat-page .chat-attachment-list span {
-  min-width: 0;
-  overflow-wrap: anywhere;
-}
-.chat-page .chat-attachment-list button {
-  width: auto;
-  flex: 0 0 auto;
-}
-
-.chat-page .chat-references,
-.chat-page .knowledge-sources,
-.chat-page .knowledge-citations,
-.chat-page [aria-label="知识来源"] {
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  flex-wrap: wrap;
-  margin-top: 10px;
-  padding: 8px 0 0;
-  border: 0;
-  border-top: 1px solid var(--line);
-  border-radius: 0;
-  background: transparent;
-  box-shadow: none;
-}
-.chat-page .chat-references .ref-label,
-.chat-page .knowledge-sources > h3,
-.chat-page .knowledge-citations > h3,
-.chat-page [aria-label="知识来源"] > h3 {
-  flex: 1 0 100%;
-  margin: 0;
-  color: var(--muted);
-  font-size: 11px;
-  font-weight: 700;
-}
-.chat-page .chat-references a,
-.chat-page .chat-references button,
-.chat-page .knowledge-citation-button,
-.chat-page .citation-button,
-.chat-page [data-citation-ordinal] {
-  max-width: 100%;
-  min-height: 30px;
-  display: inline-flex;
-  align-items: center;
-  margin: 0;
-  padding: 4px 9px;
-  border: 1px solid var(--blue-line);
-  border-radius: 5px;
-  color: var(--blue);
-  background: #fff;
-  font-size: 11px;
-  font-weight: 600;
-  line-height: 1.35;
-  text-align: left;
-  text-decoration: none;
-  white-space: normal;
-  overflow-wrap: anywhere;
-}
-.chat-page .chat-references a:focus-visible,
-.chat-page .chat-references button:focus-visible,
-.chat-page .knowledge-citation-button:focus-visible,
-.chat-page .citation-button:focus-visible,
-.chat-page [data-citation-ordinal]:focus-visible {
-  outline: 3px solid rgba(37, 99, 217, .22);
-  outline-offset: 1px;
-}
-.chat-page .knowledge-source-preview,
-.chat-page .knowledge-preview,
-.chat-page .citation-preview,
-.chat-page [aria-label="知识来源预览"] {
-  width: min(100%, 72ch);
-  max-height: min(48dvh, 480px);
-  margin-top: 10px;
-  padding: 10px 12px;
-  overflow: auto;
-  border: 0;
-  border-left: 3px solid var(--blue);
-  border-radius: 0;
-  background: #f8fafc;
-  box-shadow: none;
-  line-height: 1.65;
-  overflow-wrap: anywhere;
-  white-space: pre-wrap;
-}
-.chat-page .knowledge-source-preview > :first-child,
-.chat-page .knowledge-preview > :first-child,
-.chat-page .citation-preview > :first-child,
-.chat-page [aria-label="知识来源预览"] > :first-child {
-  margin-top: 0;
-}
-
-@media (max-width: 767px) {
-  .knowledge-page .page-header-actions {
-    width: 100%;
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-  .knowledge-page .button-link {
-    width: 100%;
-  }
-  .chat-page .page-header > div:first-child {
-    flex: 0 1 auto;
-    min-height: 0;
-  }
-  .chat-page .page-header > [role="group"] {
-    width: 100%;
-  }
-  .chat-page > section[aria-labelledby="knowledge-scope-title"] {
-    grid-template-columns: 1fr;
-  }
-  .chat-page > section[aria-labelledby="knowledge-scope-title"] > * {
-    grid-column: 1;
-  }
-  .chat-page .chat-shell {
-    min-height: 0;
-    grid-template-columns: 1fr;
-  }
-  .chat-page .chat-shell > aside {
-    padding: 10px;
-    border-right: 0;
-    border-bottom: 1px solid var(--line);
-  }
-  .chat-page .chat-shell > aside ul {
-    max-height: 136px;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    overflow-y: auto;
-  }
-  .chat-page .chat-shell > aside li {
-    align-items: stretch;
-  }
-  .chat-page .chat-transcript article {
-    max-width: 100%;
-  }
-}
-
-@media (max-width: 420px) {
-  .knowledge-page .page-header-actions {
-    grid-template-columns: 1fr;
-  }
-  .chat-page .page-header > [role="group"] {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-  .chat-page .page-header > [role="group"] button {
-    width: auto;
-    min-width: 0;
-    padding-inline: 6px;
-  }
-  .chat-page > section[aria-labelledby="knowledge-scope-title"] fieldset:first-of-type {
-    align-items: flex-start;
-    flex-direction: column;
-    gap: 8px;
-  }
-  .chat-page > section[aria-labelledby="knowledge-scope-title"] fieldset + fieldset ul,
-  .chat-page .chat-shell > aside ul {
-    grid-template-columns: 1fr;
-  }
-  .chat-page > form[aria-label="发送消息"] {
-    grid-template-columns: 1fr;
-  }
-  .chat-page > form[aria-label="发送消息"] > * {
-    grid-column: 1;
-  }
-  .chat-page .chat-references a,
-  .chat-page .chat-references button,
-  .chat-page .knowledge-citation-button,
-  .chat-page .citation-button,
-  .chat-page [data-citation-ordinal] {
-    width: 100%;
   }
 }

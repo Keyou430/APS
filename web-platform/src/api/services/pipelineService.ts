@@ -38,6 +38,10 @@ export type PipelineTask = {
   timezone?: string | null;
   input_sources?: string[];
   output_format?: string | null;
+  approval_required?: boolean;
+  approval_assignee_type?: "creator" | "member" | "role" | string;
+  approval_reminder_after_minutes?: number | null;
+  approval_escalation_after_minutes?: number | null;
 };
 
 export type PipelineTaskDraft = Omit<PipelineTask, "id">;
@@ -58,6 +62,10 @@ export type PipelineDecision = {
   status?: PipelineDecisionStatus | string;
   summary?: string | null;
   title?: string | null;
+  approval_comment?: string | null;
+  rejection_reason?: string | null;
+  reason_type?: string | null;
+  decided_at?: string | null;
 };
 
 export type PipelineDecisionListResponse = {
@@ -66,6 +74,9 @@ export type PipelineDecisionListResponse = {
 
 export type PipelineRequestChangesPayload = {
   reason: string;
+};
+export type PipelineApprovePayload = {
+  comment?: string;
 };
 
 export type PipelineOutput = {
@@ -81,7 +92,10 @@ export type PipelineOutput = {
 };
 
 export type PipelineService = {
-  approveDecision(id: number | string): Promise<PipelineDecision>;
+  approveDecision(
+    id: number | string,
+    payload?: PipelineApprovePayload,
+  ): Promise<PipelineDecision>;
   createDraft(request: PipelineTaskRequest): Promise<PipelineTaskDraft>;
   createTask(request: PipelineTaskRequest): Promise<PipelineTask>;
   downloadOutput(id: number | string): Promise<Blob>;
@@ -125,12 +139,13 @@ export function createPipelineService(client: ApiClient): PipelineService {
     return key;
   };
   return {
-    approveDecision(id) {
+    approveDecision(id, payload) {
       return client.request<PipelineDecision>(
         `/dashboard/decisions/${id}/approve`,
         {
           method: "POST",
           headers: { "Idempotency-Key": `decision-approve:${String(id)}` },
+          ...(payload ? { body: payload } : {}),
         },
       );
     },

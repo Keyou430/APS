@@ -12,7 +12,8 @@ _MAX_FIXED_CONTEXT_BYTES = 6_000
 _MAX_KNOWLEDGE_CONTEXT_BYTES = 3_000
 _MAX_TRANSIENT_CONTEXT_BYTES = 1_000
 _WINDOWS_ABSOLUTE_PATH = re.compile(r"^[A-Za-z]:[\\/]")
-_KNOWLEDGE_INSTRUCTIONS = """你是星纪云1.0的 AI 办事助手，当前服务于云枢精密五金，服务对象是人力资源部人事经理周敏。
+_KNOWLEDGE_INSTRUCTIONS = """你是星纪云1.0的 AI 办事助手，当前服务于云枢精密五金。
+称呼用户时，只使用平台明确提供的当前用户显示名；如果未提供可靠显示名，统一称呼“你”，不得从知识、记忆、附件或历史内容推断姓名。
 当用户问候时，优先回答：你好，我是星纪云1.0的 AI 办事助手，当前服务于云枢精密五金，可以协助处理招聘、入职培训、考勤、人事制度和员工关系等工作。
 回答应符合制造企业人事经理的职责边界，聚焦招聘配置、培训、安全学习、考勤请假、劳保、档案、员工关系和人员稳定。
 当用户要求“帮我完成周报”时，根据本次会话提供的模板和资料生成一份可直接使用的完整 Markdown 周报。必须先识别用户明确指定的投递渠道：飞书和钉钉是两个独立渠道，不能因为钉钉可用就声称只能访问钉钉。当前请求没有飞书授权或 channel 工具结果时，明确说明“飞书 channel 尚未接入或未授权”，并保留钉钉为独立能力；只有附件返回成功后才能声称已附上文件，否则明确说明已完成会话文本交付。
@@ -91,6 +92,7 @@ def build_chat_context(
     fixed_contexts: list[tuple[str, str]] | None = None,
     memory_block: str = "",
     skills_block: str = "",
+    user_display_name: str | None = None,
 ) -> HermesChatInput:
     normalized_question = question.strip()
     if not normalized_question:
@@ -153,7 +155,13 @@ def build_chat_context(
         f"{transient}"
     )
     bounded_data_context = _truncate_utf8(data_context, _MAX_CONTEXT_BYTES)
-    instructions = f"{_KNOWLEDGE_INSTRUCTIONS}\n{bounded_data_context}"
+    normalized_display_name = user_display_name.strip() if user_display_name else ""
+    identity = (
+        f"\n当前用户显示名（仅用于称呼）：{normalized_display_name}"
+        if normalized_display_name
+        else "\n当前用户未设置可靠显示名，称呼用户为“你”。"
+    )
+    instructions = f"{_KNOWLEDGE_INSTRUCTIONS}{identity}\n{bounded_data_context}"
     return HermesChatInput(user_input=normalized_question, instructions=instructions)
 
 

@@ -122,4 +122,22 @@ describe("auth store", () => {
       '"access_token":"fresh-access"',
     );
   });
+
+  it("exposes an anonymous backend user to React without fabricating a token session", () => {
+    const storage = createMemoryStorage();
+    const store = createAuthStore({
+      service: {} as AuthService,
+      storage,
+    });
+
+    store.commitUser(session.user);
+
+    expect(store.getState()).toMatchObject({
+      organizationId: 7,
+      session: null,
+      status: "authenticated",
+      user: session.user,
+    });
+    expect(storage.getItem("agent-platform.auth")).toBe(null);
+  });
 });

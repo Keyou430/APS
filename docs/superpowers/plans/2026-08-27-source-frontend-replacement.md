@@ -16,7 +16,7 @@
 - 不镜像生成物：`web-platform/node_modules`、`web-platform/dist`、`web-platform/test-results`。
 - 后端适配：`src/api/client.ts`、指定 `src/api/services/*.ts` 及对应测试、`src/app.js` 单用户认证块。
 - 保持源实现：导航 DOM、菜单文字、子菜单、卡片布局、页签、路由归属、页面和 CSS。
-- 不修改：`backend/**`、`deploy/**`、根目录其他源码及用户现有后端改动。
+- 不批量覆盖：`backend/**`、`deploy/**`、根目录其他源码及用户现有后端改动；联调发现的现有迁移/请求约束缺陷，仅在对应文件中做带回归测试的窄范围修复。
 
 ### 任务 1：建立可恢复快照并镜像源前端
 
@@ -26,7 +26,7 @@
 - 替换：`D:\Replica1.0\web-platform\**`
 - 备份：`D:\Replica1.0-backups\20260827-web-platform-before-source-replacement\**`
 
-- [ ] **步骤 1：验证绝对路径和替换范围**
+- [x] **步骤 1：验证绝对路径和替换范围**
 
 运行：
 
@@ -39,7 +39,7 @@ if ($target -ne 'D:\Replica1.0\web-platform') { throw "目标路径异常：$tar
 
 预期：无输出且退出码为 0。
 
-- [ ] **步骤 2：备份当前前端源码和未提交文件**
+- [x] **步骤 2：备份当前前端源码和未提交文件**
 
 运行：
 
@@ -53,7 +53,7 @@ if ($LASTEXITCODE -gt 7) { throw "前端备份失败：$LASTEXITCODE" }
 
 预期：`robocopy` 退出码为 0 至 7，备份目录包含当前前端源码。
 
-- [ ] **步骤 3：将源前端镜像到目标目录**
+- [x] **步骤 3：将源前端镜像到目标目录**
 
 运行：
 
@@ -64,7 +64,7 @@ if ($LASTEXITCODE -gt 7) { throw "源前端镜像失败：$LASTEXITCODE" }
 
 预期：当前前端独有源码被移除，源前端源码完整复制，依赖和生成目录不参与镜像。
 
-- [ ] **步骤 4：验证关键 UI 文件与源文件完全一致**
+- [x] **步骤 4：验证关键 UI 文件与源文件完全一致**
 
 运行：
 
@@ -90,7 +90,7 @@ foreach ($file in $files) {
 - 修改：`web-platform/src/api/services/chatService.test.ts`
 - 修改：`web-platform/src/api/services/knowledgeService.test.ts`
 
-- [ ] **步骤 1：从备份恢复已验证的后端契约测试**
+- [x] **步骤 1：从备份恢复已验证的后端契约测试**
 
 仅复制下列测试文件，不复制页面、样式或应用外壳：
 
@@ -110,7 +110,7 @@ foreach ($file in $tests) {
 }
 ```
 
-- [ ] **步骤 2：运行测试并确认后端契约适配尚未实现**
+- [x] **步骤 2：运行测试并确认后端契约适配尚未实现**
 
 运行：
 
@@ -134,7 +134,7 @@ npx vitest run src/api/services/dashboardService.test.ts src/api/services/pipeli
 - 修改：`web-platform/src/api/services/enterpriseService.ts`
 - 修改：`web-platform/src/app.js`
 
-- [ ] **步骤 1：恢复纯 API/DTO 适配文件**
+- [x] **步骤 1：恢复纯 API/DTO 适配文件**
 
 这些文件与源项目的差异只包含后端契约，不包含界面结构。运行：
 
@@ -181,52 +181,14 @@ type NumericString = `${number}`;
 resolveCitation(turnId: number | NumericString, ordinal: number): Promise<KnowledgeCitationResolveResponse>;
 ```
 
-- [ ] **步骤 2：在源 `app.js` 中应用单用户认证适配**
+- [x] **步骤 2：在认证 runtime 和源 `app.js` 中应用单用户认证适配**
 
-保留源文件全部导航与 UI 代码，只加入以下认证行为：
+保留源文件全部导航与 UI 代码。前端不硬编码部署模式：无 Token 的 `/auth/me`
+成功时动态识别为单用户模式，并把后端返回的真实用户、组织 ID 写入 runtime store；
+React 直达路由在挂载前完成该恢复。多用户部署匿名返回 401 时仍保留登录入口。
+退出登录先清除真实 runtime token，再按后端当前模式恢复匿名身份或显示登录界面。
 
-```js
-const SINGLE_USER_MODE = true
-const singleUserFallback = {
-  id: 0,
-  username: "admin",
-  display_name: "admin",
-  email: null,
-  default_org_id: "0",
-  default_dept_id: null,
-  roles: ["admin", "super_admin"],
-  permissions: ["*"],
-  must_change_password: false,
-}
-
-function applySingleUserFallback() {
-  if (!SINGLE_USER_MODE) return false
-  _authToken = null
-  _authUser = { ...singleUserFallback }
-  window.App = window.App || {}
-  window.App._authToken = null
-  window.App._authUserId = _authUser.id
-  _syncAuthModule(null, _authUser)
-  updateAuthUI()
-  return true
-}
-
-async function restoreSingleUserIdentity() {
-  _authToken = null
-  window.App = window.App || {}
-  window.App._authToken = null
-  _syncAuthModule(null, _authUser)
-  await loadCurrentUser()
-  return _authUser !== null || applySingleUserFallback()
-}
-```
-
-同时完成这些窄范围调整：`loadCurrentUser()` 无 Token 也请求 `/auth/me`；请求头仅在
-Token 存在时附加；`isLoggedIn()` 以 `_authUser` 判断；无 Token 时不刷新；退出登录
-恢复本地单用户；管理员入口不再被登录门禁重定向；聊天 401 仅在非单用户模式显示
-登录过期；用户按钮直接打开资料菜单。
-
-- [ ] **步骤 3：运行聚焦测试**
+- [x] **步骤 3：运行聚焦测试**
 
 运行：
 
@@ -245,7 +207,7 @@ npx vitest run src/api/services/dashboardService.test.ts src/api/services/pipeli
 - 验证：`web-platform/src/app.js`
 - 验证：`web-platform/tests/portal_workbench.test.js`
 
-- [ ] **步骤 1：运行源导航契约测试**
+- [x] **步骤 1：运行源导航契约测试**
 
 运行：
 
@@ -255,7 +217,7 @@ node --test tests/portal_workbench.test.js tests/platform_contracts.test.js test
 
 预期：子菜单 `data-scroll-target`、复合页签、AI 服务菜单和生产入口契约全部通过。
 
-- [ ] **步骤 2：静态核对卡片导航实现仍来自源项目**
+- [x] **步骤 2：静态核对卡片导航实现仍来自源项目**
 
 运行：
 
@@ -272,7 +234,7 @@ rg -n "function openSubTab|compoundView|scrollIntoView|cockpit-flash|data-scroll
 - 验证：`web-platform/**`
 - 只读验证：`backend/tests/**`
 
-- [ ] **步骤 1：安装锁定依赖并运行前端验证**
+- [x] **步骤 1：安装锁定依赖并运行前端验证**
 
 运行：
 
@@ -286,7 +248,7 @@ npm run lint
 
 预期：Node 测试、Vitest、TypeScript、Vite 构建和 ESLint 全部通过。
 
-- [ ] **步骤 2：运行关键后端契约测试**
+- [x] **步骤 2：运行关键后端契约测试**
 
 运行：
 
@@ -303,15 +265,15 @@ npm run lint
 - 验证：运行中的前端和后端
 - 生成：`web-platform/test-results/**`（不提交）
 
-- [ ] **步骤 1：启动前后端开发服务器**
+- [x] **步骤 1：启动前后端开发服务器**
 
 后端使用 8000 端口，前端使用首个可用 Vite 端口。确认 `/api/auth/me`、门户数据和驾驶舱数据返回成功。
 
-- [ ] **步骤 2：在桌面和移动视口验证关键交互**
+- [x] **步骤 2：在桌面和移动视口验证关键交互**
 
 浏览器检查：主导航切换、驾驶舱子菜单定位 KPI/决策/任务/文档/快捷入口、门户子菜单定位对应卡片、复合页签创建和关闭、目标卡片高亮、AI 服务菜单保持会话窗口、移动端无重叠和空白页面。
 
-- [ ] **步骤 3：检查最终差异**
+- [x] **步骤 3：检查最终差异**
 
 运行：
 
@@ -322,3 +284,14 @@ git diff --stat -- web-platform
 ```
 
 预期：差异仅包含源前端替换、明确列出的后端适配和测试；后端原有未提交修改未被本任务改写。
+
+### 任务 7：最终审查修复
+
+- [x] React 直达 `/portal`、`/pipeline`、`/users` 使用匿名单用户的真实组织上下文。
+- [x] 公告发布将源 UI 的一次操作映射为“创建草稿 → 发布”，并将 `body` 转为 `content`。
+- [x] 驾驶舱保留 `changes_requested`、`superseded` 决策终态，不再回退为待审批。
+- [x] PostgreSQL 审批迁移使用布尔 `true` 默认值；关闭审批时归一化无效指派字段。
+- [x] Node 40/40、Vitest 182/182、ESLint、TypeScript/Vite 构建通过。
+- [x] 后端相关测试 39/39 通过（迁移测试使用仓库内独立临时目录重跑）。
+- [x] SQLite 空库升级、降级到 `20260823_0022`、再升级到 `20260827_0024` 通过。
+- [x] 浏览器验证源子菜单复合页签/卡片定位，以及三个 React 直达路由无 forbidden。

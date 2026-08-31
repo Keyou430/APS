@@ -27,6 +27,7 @@ class UserResponse(BaseModel):
 
     id: int
     username: str
+    display_name: str | None = None
     email: EmailStr
     role: str
     member_type: str = "internal"

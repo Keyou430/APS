@@ -34,7 +34,9 @@ describe("pipeline service", () => {
     await service.runTask("task-1");
     await service.getRun("run-1");
     await service.listDecisions();
-    await service.approveDecision("decision-1");
+    await service.approveDecision("decision-1", {
+      comment: "已核对来源，可以归档",
+    });
     await service.requestChanges("decision-1", {
       reason: "需要补充审批依据",
     });
@@ -72,6 +74,7 @@ describe("pipeline service", () => {
       {
         method: "POST",
         headers: { "Idempotency-Key": expect.any(String) },
+        body: { comment: "已核对来源，可以归档" },
       },
     );
     expect(request).toHaveBeenNthCalledWith(

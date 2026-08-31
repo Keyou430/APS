@@ -10,13 +10,24 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
 from app.auth.security import decode_token
+from app.config import get_settings
 from app.database import get_db
 from app.models import Organization, OrganizationMembership, Role, RolePermission, User
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/token")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/token", auto_error=False)
 
 
-async def get_token_claims(token: Annotated[str, Depends(oauth2_scheme)]) -> dict:
+async def get_token_claims(
+    token: Annotated[str | None, Depends(oauth2_scheme)],
+) -> dict | None:
+    if token is None:
+        if get_settings().single_user_mode:
+            return None
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Not authenticated",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
     try:
         return decode_token(token, "access")
     except (ValueError, TypeError):
@@ -27,13 +38,24 @@ async def get_token_claims(token: Annotated[str, Depends(oauth2_scheme)]) -> dic
         ) from None
 
 
-TokenClaims = Annotated[dict, Depends(get_token_claims)]
+TokenClaims = Annotated[dict | None, Depends(get_token_claims)]
 
 
 async def get_current_user(
     claims: TokenClaims,
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> User:
+    if claims is None:
+        user = await db.scalar(
+            select(User).where(User.username == get_settings().admin_username)
+        )
+        if user is None or not user.is_active:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Single-user account is not initialized",
+            )
+        return user
+
     user = await db.scalar(select(User).where(User.id == int(claims["sub"])))
     if user is None or not user.is_active:
         raise HTTPException(
@@ -74,7 +96,13 @@ async def get_current_organization_context(
     user: CurrentUser,
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> OrganizationContext:
-    organization_id = int(claims["organization_id"])
+    organization_id = (
+        user.default_organization_id
+        if claims is None
+        else int(claims["organization_id"])
+    )
+    if organization_id is None:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No active organization")
     now = datetime.now(UTC)
     membership = await db.scalar(
         select(OrganizationMembership)
